@@ -10,7 +10,13 @@ endif()
 project(Sirius-Tune-2)
 
 set(SRCS
+    "src/dataset.cpp"
+    "src/dataset.h"
+    "src/eval_fn.cpp"
+    "src/eval_fn.h"
     "src/main.cpp"
+    "src/tune.cpp"
+    "src/tune.h"
 )
 
 add_executable(tune ${SRCS})
