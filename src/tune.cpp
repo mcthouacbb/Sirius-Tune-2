@@ -1,5 +1,4 @@
 #include "tune.h"
-#include <iostream>
 
 double sigmoid(double x, double k)
 {
@@ -26,7 +25,6 @@ double calcError(std::span<const Position> positions, std::span<const Coefficien
     for (auto& pos : positions)
     {
         double eval = linearEval(pos, coefficients, params);
-        std::cout << eval << std::endl;
         double diff = sigmoid(eval, kValue) - pos.wdl;
         error += diff * diff;
     }
