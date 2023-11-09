@@ -49,14 +49,14 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const chess::Board& board)
     return {pos, m_Coefficients.size()};
 }
 
-struct EvalParams
+struct InitialParams
 {
     int psqt[6][64][2];
 };
 
 #define S(mg, eg) {mg, eg}
 
-constexpr EvalParams DEFAULT_PARAMS = {
+constexpr InitialParams DEFAULT_PARAMS = {
     {
         {
             S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), 
@@ -122,28 +122,28 @@ constexpr EvalParams DEFAULT_PARAMS = {
 };
 
 template<typename T>
-void addEvalParam(std::vector<EvalParam>& params, const T& t)
+void addEvalParam(EvalParams& params, const T& t)
 {
     params.push_back({static_cast<double>(t[0]), static_cast<double>(t[1])});
 }
 
 template<typename T>
-void addEvalParamArray(std::vector<EvalParam>& params, const T& t)
+void addEvalParamArray(EvalParams& params, const T& t)
 {
     for (auto param : t)
         addEvalParam(params, param);
 }
 
 template<typename T>
-void addEvalParamArray2D(std::vector<EvalParam>& params, const T& t)
+void addEvalParamArray2D(EvalParams& params, const T& t)
 {
     for (auto& array : t)
         addEvalParamArray(params, array);
 }
 
-std::vector<EvalParam> EvalFn::getInitialParams()
+EvalParams EvalFn::getInitialParams()
 {
-    std::vector<EvalParam> params;
+    EvalParams params;
     addEvalParamArray2D(params, DEFAULT_PARAMS.psqt);
     return params;
 }

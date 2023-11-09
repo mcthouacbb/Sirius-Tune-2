@@ -12,7 +12,7 @@ public:
 
     void reset();
     std::pair<size_t, size_t> getCoefficients(const chess::Board& board);
-    static std::vector<EvalParam> getInitialParams();
+    static EvalParams getInitialParams();
 private:
     template<typename T>
     void addCoefficient(const T& trace)
