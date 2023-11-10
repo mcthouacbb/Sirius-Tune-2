@@ -20,6 +20,7 @@ Dataset loadDataset(std::ifstream& file)
     std::vector<Position> positions;
     EvalFn eval(allCoefficients);
     std::string line;
+
     while (std::getline(file, line))
     {
         double wdlResult = -1.0;
@@ -66,6 +67,9 @@ Dataset loadDataset(std::ifstream& file)
         pos.phase /= 24.0;
         
         positions.push_back(pos);
+
+        if (positions.size() % 65536 == 0)
+            std::cout << "Loaded " << positions.size() << " positions " << std::endl;
     }
     return {allCoefficients, positions};
 }
