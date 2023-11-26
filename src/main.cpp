@@ -19,5 +19,6 @@ int main()
     std::vector<Gradient> gradients(defaultParams.size());
     computeGradient(data.positions, data.allCoefficients, 0.05, defaultParams, gradients);
     for (int i = 0; i < gradients.size(); i++)
-        std::cout << gradients[i].mg << ' ' << gradients[i].eg << std::endl;
+        std::cout << "{" << gradients[i].mg << ' ' << gradients[i].eg << "}, ";
+    std::cout << "\n\n";
 }

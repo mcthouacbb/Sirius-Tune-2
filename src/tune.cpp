@@ -1,4 +1,5 @@
 #include "tune.h"
+#include <iostream>
 
 double sigmoid(double x, double k)
 {
@@ -35,14 +36,14 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
 {
     double eval = evaluate(pos, coefficients, params);
     double wdl = sigmoid(eval, kValue);
-    double gradientBase = 2 * (wdl - pos.wdl) * (wdl * (1 - wdl));
+    double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
+    double mgBase = gradientBase * pos.phase;
+    double egBase = gradientBase - mgBase;
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
-        double evalDerivMG = pos.phase * (coeff.white - coeff.black);
-        double evalDerivEG = (1 - pos.phase) * (coeff.white - coeff.black);
-        gradients[coeff.index].mg += evalDerivMG * gradientBase;
-        gradients[coeff.index].eg += evalDerivEG * gradientBase;
+        gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
+        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
     }
 }
 
@@ -55,9 +56,10 @@ void computeGradient(std::span<const Position> positions, Coeffs coefficients, d
 
     for (auto& grad : gradients)
     {
+        // technically this isn't the true gradient of the function
+        // to get the true gradient, one must multiply this gradient
+        // by 2 * kValue
         grad.mg /= positions.size();
         grad.eg /= positions.size();
     }
 }
-
-
