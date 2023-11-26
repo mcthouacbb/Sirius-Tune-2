@@ -56,10 +56,8 @@ void computeGradient(std::span<const Position> positions, Coeffs coefficients, d
 
     for (auto& grad : gradients)
     {
-        // technically this isn't the true gradient of the function
-        // to get the true gradient, one must multiply this gradient
-        // by 2 * kValue
-        grad.mg /= positions.size();
-        grad.eg /= positions.size();
+        // technically, this is actually the gradient multiplied by 0.5
+        grad.mg = grad.mg * kValue / positions.size();
+        grad.eg = grad.eg * kValue / positions.size();
     }
 }
