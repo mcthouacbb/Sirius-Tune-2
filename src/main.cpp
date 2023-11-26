@@ -15,5 +15,5 @@ int main()
     Dataset data = loadDataset(datasetFile);
 
     std::vector<EvalParam> defaultParams = EvalFn::getInitialParams();
-    calcError(data.positions, 3.423, defaultParams);
+    std::cout << calcError(data.positions, data.allCoefficients, 3.423, defaultParams) << std::endl;
 }

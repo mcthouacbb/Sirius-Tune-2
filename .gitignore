@@ -2,3 +2,5 @@
 .replit
 replit.nix
 build
+
+res/quiet-labeled*

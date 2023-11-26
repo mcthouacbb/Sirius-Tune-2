@@ -7,13 +7,14 @@
 struct Coefficient
 {
     int16_t index;
-    int8_t white;
-    int8_t black;
+    int16_t white;
+    int16_t black;
 };
 
 struct Position
 {
-    std::span<const Coefficient> coefficients;
+    int coeffBegin;
+    int coeffEnd;
     double wdl;
     double phase;
 };

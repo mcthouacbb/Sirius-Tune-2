@@ -22,7 +22,8 @@ Trace getTrace(const chess::Board& board)
 
         // flip if white
         int square = sq ^ (color == chess::Color::WHITE ? 0b111000 : 0);
-        trace.psqt[static_cast<int>(type) - 1][square][static_cast<int>(color)]++;
+
+        trace.psqt[static_cast<int>(type)][square][static_cast<int>(color)]++;
     }
 
     return trace;
@@ -39,13 +40,13 @@ void EvalFn::reset()
     m_TraceIdx = 0;
 }
 
-std::span<Coefficient> EvalFn::getCoefficients(const chess::Board& board)
+std::pair<size_t, size_t> EvalFn::getCoefficients(const chess::Board& board)
 {
     reset();
     size_t pos = m_Coefficients.size();
     Trace trace = getTrace(board);
     addCoefficientArray2D(trace.psqt);
-    return {m_Coefficients.data() + pos, m_Coefficients.size() - pos};
+    return {pos, m_Coefficients.size()};
 }
 
 struct EvalParams
@@ -123,7 +124,7 @@ constexpr EvalParams DEFAULT_PARAMS = {
 template<typename T>
 void addEvalParam(std::vector<EvalParam>& params, const T& t)
 {
-    params.push_back({t[0], t[1]});
+    params.push_back({static_cast<double>(t[0]), static_cast<double>(t[1])});
 }
 
 template<typename T>

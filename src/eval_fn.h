@@ -11,14 +11,14 @@ public:
     EvalFn(std::vector<Coefficient>& coefficients);
 
     void reset();
-    std::span<Coefficient> getCoefficients(const chess::Board& board);
+    std::pair<size_t, size_t> getCoefficients(const chess::Board& board);
     static std::vector<EvalParam> getInitialParams();
 private:
     template<typename T>
     void addCoefficient(const T& trace)
     {
         if (trace[0] - trace[1] != 0)
-            m_Coefficients.push_back({m_TraceIdx, trace[0], trace[1]});
+            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx), static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
         m_TraceIdx++;
     }
 

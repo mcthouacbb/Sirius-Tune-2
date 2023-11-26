@@ -11,4 +11,4 @@ struct EvalParam
     double eg;
 };
 
-double calcError(std::span<const Position> positions, double kValue, const std::vector<EvalParam>& params);
+double calcError(std::span<const Position> positions, std::span<const Coefficient> coefficients, double kValue, const std::vector<EvalParam>& params);

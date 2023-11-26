@@ -25,7 +25,7 @@ Dataset loadDataset(std::ifstream& file)
         double wdlResult = -1.0;
         for (auto& wdl : wdls)
         {
-            if (line.find(wdl.str))
+            if (line.find(wdl.str) != std::string::npos)
             {
                 wdlResult  = wdl.wdl;
                 break;
@@ -36,14 +36,27 @@ Dataset loadDataset(std::ifstream& file)
             std::cout << "Warning: line with no wdl marker, defaulting to 0.5" << std::endl;
             wdlResult = 0.5;
         }
-        
-        chess::Board board;
-        board.setFen(line);
 
-        auto coeffs = eval.getCoefficients(board);
+        // will overflow to 0
+        size_t fourthSpace = SIZE_MAX;
+        for (int i = 0; i < 4; i++)
+        {
+            fourthSpace = line.find(' ', fourthSpace + 1);
+            if (fourthSpace == std::string::npos)
+            {
+                std::cout << "Error: Invalid data: " << line << std::endl;
+                exit(1);
+            }
+        }
+
+        chess::Board board;
+        board.setFen(std::string_view(line.begin(), line.begin() + fourthSpace));
+
+        auto [coeffBegin, coeffEnd] = eval.getCoefficients(board);
 
         Position pos;
-        pos.coefficients = coeffs;
+        pos.coeffBegin = coeffBegin;
+        pos.coeffEnd = coeffEnd;
         pos.wdl = wdlResult;
         pos.phase =
             4 * chess::builtin::popcount(board.pieces(chess::PieceType::QUEEN)) +
