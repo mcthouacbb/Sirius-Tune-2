@@ -20,6 +20,38 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     return (mg * pos.phase + eg * (1.0 - pos.phase));
 }
 
+double findKValue(std::span<const Position> positions, std::span<const Coefficient> coefficients, const EvalParams& params)
+{
+    constexpr double SEARCH_MAX = 10;
+    constexpr int ITERATIONS = 10;
+
+    double start = 0, end = SEARCH_MAX, step = 0.25;
+    double bestK = 0, bestError = 1e10;
+
+    for (int i = 0; i < ITERATIONS; i++)
+    {
+        std::cout << "Iteration: " << i << std::endl;
+        std::cout << "Start: " << start + step << " End: " << end + step << " Step: " << step << std::endl;
+        for (double curr = start + step; curr < end + step; curr += step)
+        {
+            double error = calcError(positions, coefficients, curr, params);
+            std::cout << "K: " << curr << " Error: " << error << std::endl;
+            if (error < bestError)
+            {
+                std::cout << "New best" << std::endl;
+                bestError = error;
+                bestK = curr;
+            }
+        }
+
+        start = bestK - step;
+        end = bestK + step;
+        step *= 0.1;
+    }
+
+    return bestK;
+}
+
 double calcError(std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params)
 {
     double error = 0.0;
