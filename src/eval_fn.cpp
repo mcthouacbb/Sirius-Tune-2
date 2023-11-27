@@ -1,5 +1,8 @@
 #include "eval_fn.h"
 
+#include <sstream>
+#include <iomanip>
+
 using TraceElem = std::array<int, 2>;
 
 struct Trace
@@ -146,4 +149,56 @@ EvalParams EvalFn::getInitialParams()
     EvalParams params;
     addEvalParamArray2D(params, DEFAULT_PARAMS.psqt);
     return params;
+}
+
+struct PrintState
+{
+    const EvalParams& params;
+    uint32_t index;
+    std::ostringstream ss;
+};
+
+template<int ALIGN_SIZE>
+void printSingle(PrintState& state)
+{
+    const EvalParam& param = state.params[state.index++];
+    if constexpr (ALIGN_SIZE == 0)
+        state.ss << "S(" << param.mg << ", " << param.eg << ')';
+    else
+        state.ss << "S(" << std::setw(ALIGN_SIZE) << param.mg << ", " << std::setw(ALIGN_SIZE) << param.eg << ')';
+}
+
+template<int ALIGN_SIZE>
+void printPSQTs(PrintState& state)
+{
+    state.ss << "PSQT: {\n";
+    for (int pce = 0; pce < 6; pce++)
+    {
+        state.ss << "\t{\n";
+        for (int y = 0; y < 8; y++)
+        {
+            state.ss << "\t\t";
+            for (int x = 0; x < 8; x++)
+            {
+                printSingle<ALIGN_SIZE>(state);
+                state.ss << ", ";
+            }
+            state.ss << "\n";
+        }
+        state.ss << "\t},\n";
+    }
+    state.ss << "}";
+}
+
+void EvalFn::printEvalParams(const EvalParams& params)
+{
+    PrintState state{params, 0};
+    printPSQTs<0>(state);
+    std::cout << state.ss.str() << std::endl;
+}
+
+void EvalFn::printEvalParamsExtracted(const EvalParams& params)
+{
+    PrintState state{params, 0};
+    printPSQTs<4>(state);
 }
