@@ -62,14 +62,14 @@ struct InitialParams
 constexpr InitialParams DEFAULT_PARAMS = {
     {
         {
-            S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), 
+            S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), 
             S( 101,  282), S( 106,  278), S(  88,  261), S( 123,  224), S( 140,  216), S( 128,  231), S(  78,  273), S(  37,  271), 
             S(  44,  206), S(  69,  200), S(  93,  185), S(  86,  165), S( 100,  153), S( 138,  140), S(  77,  178), S(  50,  185), 
             S(  62,  131), S(  81,  120), S(  75,  109), S(  87,   95), S(  99,   90), S(  86,   95), S(  81,  111), S(  47,  115), 
             S(  43,  111), S(  75,  103), S(  71,   87), S(  89,   87), S(  89,   83), S(  79,   86), S(  76,   97), S(  32,   98), 
             S(  51,  101), S(  72,  101), S(  76,   88), S(  71,   97), S(  88,   94), S(  66,   91), S( 108,   93), S(  63,   93), 
             S(  48,  113), S(  82,  104), S(  64,  108), S(  60,  104), S(  75,  104), S( 102,   98), S( 123,   96), S(  65,   93), 
-            S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), S(  82,   94), 
+            S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), 
         },
         {
             S( 116,  250), S( 272,  220), S( 299,  248), S( 284,  255), S( 377,  233), S( 228,  244), S( 217,  242), S( 233,  177), 
@@ -190,6 +190,17 @@ void printPSQTs(PrintState& state)
     state.ss << "}";
 }
 
+void printMaterial(PrintState& state)
+{
+    state.ss << "Material: {";
+    for (int j = 0; j < 5; j++)
+    {
+        printSingle<4>(state);
+        state.ss << ", ";
+    }
+    state.ss << "}\n";
+}
+
 void EvalFn::printEvalParams(const EvalParams& params)
 {
     PrintState state{params, 0};
@@ -197,8 +208,48 @@ void EvalFn::printEvalParams(const EvalParams& params)
     std::cout << state.ss.str() << std::endl;
 }
 
+EvalParams extractMaterial(const EvalParams& params)
+{
+    EvalParams rebalanced = params;
+    int material[2][6];
+    for (int pce = 0; pce < 6; pce++)
+    {
+        int begin = (pce == 0 ? 24 : 0), end = (pce == 0 ? 56 : 64);
+        int avgMG = 0, avgEG = 0;
+        for (int sq = begin; sq < end; sq++)
+        {
+            avgMG += static_cast<int>(params[pce * 64 + sq].mg);
+            avgEG += static_cast<int>(params[pce * 64 + sq].eg);
+        }
+
+        avgMG /= (end - begin);
+        avgEG /= (end - begin);
+
+        material[0][pce] = avgMG;
+        material[1][pce] = avgEG;
+
+        if (pce == 0)
+            begin = 8;
+        for (int sq = begin; sq < end; sq++)
+        {
+            rebalanced[pce * 64 + sq].mg -= static_cast<double>(avgMG);
+            rebalanced[pce * 64 + sq].eg -= static_cast<double>(avgEG);
+        }
+    }
+
+    EvalParams extracted;
+    for (int i = 0; i < 5; i++)
+    {
+        extracted.push_back(EvalParam{static_cast<double>(material[0][i]), static_cast<double>(material[1][i])});
+    }
+    extracted.insert(extracted.end(), rebalanced.begin(), rebalanced.end());
+    return extracted;
+}
+
 void EvalFn::printEvalParamsExtracted(const EvalParams& params)
 {
-    PrintState state{params, 0};
+    PrintState state{extractMaterial(params), 0};
+    printMaterial(state);
     printPSQTs<4>(state);
+    std::cout << state.ss.str() << std::endl;
 }
