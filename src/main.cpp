@@ -25,4 +25,6 @@ int main()
     // for (int i = 0; i < gradients.size(); i++)
         // std::cout << "{" << gradients[i].mg << ' ' << gradients[i].eg << "}, ";
     std::cout << "\n\n";
+
+    tune(data, EvalParams(defaultParams.size(), {0, 0}), kValue);
 }

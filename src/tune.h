@@ -20,3 +20,5 @@ double findKValue(std::span<const Position> positions, std::span<const Coefficie
 
 double calcError(std::span<const Position> positions, std::span<const Coefficient> coefficients, double kValue, const EvalParams& params);
 void computeGradient(std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
+
+EvalParams tune(const Dataset& dataset, EvalParams params, double kValue);

@@ -93,3 +93,40 @@ void computeGradient(std::span<const Position> positions, Coeffs coefficients, d
         grad.eg = grad.eg * kValue / positions.size();
     }
 }
+
+EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
+{
+    // TODO: Make these configurable
+    constexpr double LR = 500.0;
+    constexpr double BETA1 = 0.9, BETA2 = 0.999;
+    constexpr double EPSILON = 1e-8;
+    std::vector<Gradient> momentum(params.size(), {0, 0});
+    std::vector<Gradient> velocity(params.size(), {0, 0});
+    std::vector<Gradient> gradient(params.size(), {0, 0});
+
+    for (int epoch = 0; epoch < 5000; epoch++)
+    {
+        computeGradient(dataset.positions, dataset.allCoefficients, kValue, params, gradient);
+
+        for (int i = 0; i < gradient.size(); i++)
+        {
+            momentum[i].mg = BETA1 * momentum[i].mg + (1 - BETA1) * gradient[i].mg;
+            momentum[i].eg = BETA1 * momentum[i].eg + (1 - BETA1) * gradient[i].eg;
+
+            velocity[i].mg = BETA2 * velocity[i].mg + (1 - BETA2) * gradient[i].mg * gradient[i].mg;
+            velocity[i].eg = BETA2 * velocity[i].eg + (1 - BETA2) * gradient[i].eg * gradient[i].eg;
+
+            params[i].mg = params[i].mg - LR * momentum[i].mg / std::sqrt(velocity[i].mg + EPSILON);
+            params[i].eg = params[i].eg - LR * momentum[i].eg / std::sqrt(velocity[i].eg + EPSILON);
+        }
+
+
+        if (epoch % 100 == 0)
+        {
+            std::cout << "Epoch: " << epoch << "  ";
+            for (int i = 0; i < gradient.size(); i++)
+                std::cout << "{" << params[i].mg << ' ' << params[i].eg << "}, ";
+            std::cout << std::endl;
+        }
+    }
+}
