@@ -1,4 +1,5 @@
 #include "tune.h"
+#include "eval_fn.h"
 #include <iostream>
 
 double sigmoid(double x, double k)
@@ -97,7 +98,7 @@ void computeGradient(std::span<const Position> positions, Coeffs coefficients, d
 EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
 {
     // TODO: Make these configurable
-    constexpr double LR = 500.0;
+    constexpr double LR = 1.0;
     constexpr double BETA1 = 0.9, BETA2 = 0.999;
     constexpr double EPSILON = 1e-8;
     std::vector<Gradient> momentum(params.size(), {0, 0});
@@ -116,17 +117,17 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
             velocity[i].mg = BETA2 * velocity[i].mg + (1 - BETA2) * gradient[i].mg * gradient[i].mg;
             velocity[i].eg = BETA2 * velocity[i].eg + (1 - BETA2) * gradient[i].eg * gradient[i].eg;
 
-            params[i].mg = params[i].mg - LR * momentum[i].mg / std::sqrt(velocity[i].mg + EPSILON);
-            params[i].eg = params[i].eg - LR * momentum[i].eg / std::sqrt(velocity[i].eg + EPSILON);
+            params[i].mg -= LR * momentum[i].mg / (std::sqrt(velocity[i].mg) + EPSILON);
+            params[i].eg -= LR * momentum[i].eg / (std::sqrt(velocity[i].eg) + EPSILON);
         }
 
 
         if (epoch % 100 == 0)
         {
             std::cout << "Epoch: " << epoch << "  ";
-            for (int i = 0; i < gradient.size(); i++)
-                std::cout << "{" << params[i].mg << ' ' << params[i].eg << "}, ";
+            EvalFn::printEvalParams(params);
             std::cout << std::endl;
         }
     }
+    return params;
 }

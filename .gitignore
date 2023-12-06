@@ -3,4 +3,4 @@
 replit.nix
 build
 
-res/quiet-labeled*
+res/*.epd
