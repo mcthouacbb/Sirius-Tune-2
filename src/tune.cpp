@@ -124,7 +124,9 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
 
         if (epoch % 100 == 0)
         {
-            std::cout << "Epoch: " << epoch << "  ";
+            double error = calcError(dataset.positions, dataset.allCoefficients, kValue, params);
+            std::cout << "Epoch: " << epoch << std::endl;
+            std::cout << "Error: " << error << std::endl;
             EvalFn::printEvalParams(params);
             std::cout << std::endl;
         }

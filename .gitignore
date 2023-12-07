@@ -4,3 +4,4 @@ replit.nix
 build
 
 res/*.epd
+res/*.book
