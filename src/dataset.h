@@ -7,8 +7,7 @@
 struct Coefficient
 {
     int16_t index;
-    int16_t white;
-    int16_t black;
+    int16_t value;
 };
 
 struct Position

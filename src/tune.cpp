@@ -15,8 +15,8 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     {
         const auto& coeff = coefficients[i];
         const EvalParam& param = params[coeff.index];
-        mg += param.mg * (coeff.white - coeff.black);
-        eg += param.eg * (coeff.white - coeff.black);
+        mg += param.mg * coeff.value;
+        eg += param.eg * coeff.value;
     }
 
     return (mg * pos.phase + eg * (1.0 - pos.phase));
@@ -76,8 +76,8 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
-        gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
-        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
+        gradients[coeff.index].mg += coeff.value * mgBase;
+        gradients[coeff.index].eg += coeff.value * egBase;
     }
 }
 

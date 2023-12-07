@@ -20,7 +20,7 @@ private:
     void addCoefficient(const T& trace)
     {
         if (trace[0] - trace[1] != 0)
-            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx), static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
+            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx), static_cast<int16_t>(trace[0] - trace[1])});
         m_TraceIdx++;
     }
 
