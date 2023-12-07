@@ -19,7 +19,7 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
         eg += param.eg * coeff.value;
     }
 
-    return (mg * pos.phase + eg * (1.0 - pos.phase));
+    return (mg * pos.phase() + eg * (1.0 - pos.phase()));
 }
 
 double findKValue(std::span<const Position> positions, std::span<const Coefficient> coefficients, const EvalParams& params)
@@ -60,7 +60,7 @@ double calcError(std::span<const Position> positions, Coeffs coefficients, doubl
     for (auto& pos : positions)
     {
         double eval = evaluate(pos, coefficients, params);
-        double diff = sigmoid(eval, kValue) - pos.wdl;
+        double diff = sigmoid(eval, kValue) - pos.wdl();
         error += diff * diff;
     }
     return error / positions.size();
@@ -70,8 +70,8 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
 {
     double eval = evaluate(pos, coefficients, params);
     double wdl = sigmoid(eval, kValue);
-    double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
-    double mgBase = gradientBase * pos.phase;
+    double gradientBase = (wdl - pos.wdl()) * (wdl * (1 - wdl));
+    double mgBase = gradientBase * pos.phase();
     double egBase = gradientBase - mgBase;
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {

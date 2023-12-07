@@ -58,13 +58,12 @@ Dataset loadDataset(std::ifstream& file)
         Position pos;
         pos.coeffBegin = coeffBegin;
         pos.coeffEnd = coeffEnd;
-        pos.wdl = wdlResult;
-        pos.phase =
+        pos.wdl2 = 2 * wdlResult;
+        pos.phase24 =
             4 * chess::builtin::popcount(board.pieces(chess::PieceType::QUEEN)) +
             2 * chess::builtin::popcount(board.pieces(chess::PieceType::ROOK)) +
             chess::builtin::popcount(board.pieces(chess::PieceType::BISHOP)) +
             chess::builtin::popcount(board.pieces(chess::PieceType::KNIGHT));
-        pos.phase /= 24.0;
         
         positions.push_back(pos);
 
