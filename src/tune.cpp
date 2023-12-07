@@ -1,6 +1,7 @@
 #include "tune.h"
 #include "eval_fn.h"
 #include <iostream>
+#include <chrono>
 
 double sigmoid(double x, double k)
 {
@@ -105,6 +106,9 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
     std::vector<Gradient> velocity(params.size(), {0, 0});
     std::vector<Gradient> gradient(params.size(), {0, 0});
 
+    auto t1 = std::chrono::steady_clock::now();
+    auto startTime = t1;
+    
     for (int epoch = 0; epoch < 5000; epoch++)
     {
         computeGradient(dataset.positions, dataset.allCoefficients, kValue, params, gradient);
@@ -127,6 +131,12 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
             double error = calcError(dataset.positions, dataset.allCoefficients, kValue, params);
             std::cout << "Epoch: " << epoch << std::endl;
             std::cout << "Error: " << error << std::endl;
+
+            auto t2 = std::chrono::steady_clock::now();
+            std::cout << "Epochs/s: " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
+            std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count() << std::endl;
+            
+            t1 = t2;
             EvalFn::printEvalParams(params);
             std::cout << std::endl;
         }
