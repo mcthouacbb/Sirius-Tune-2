@@ -4,6 +4,7 @@
 #include <cmath>
 #include <span>
 #include "dataset.h"
+#include "thread_pool.h"
 
 struct EvalParam
 {
@@ -18,7 +19,7 @@ using EvalParams = std::vector<EvalParam>;
 
 double findKValue(std::span<const Position> positions, std::span<const Coefficient> coefficients, const EvalParams& params);
 
-double calcError(std::span<const Position> positions, std::span<const Coefficient> coefficients, double kValue, const EvalParams& params);
-void computeGradient(std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
+double calcError(ThreadPool& threadPool, std::span<const Position> positions, std::span<const Coefficient> coefficients, double kValue, const EvalParams& params);
+void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
 
 EvalParams tune(const Dataset& dataset, EvalParams params, double kValue);
