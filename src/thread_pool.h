@@ -13,6 +13,11 @@ public:
     ThreadPool(uint32_t concurrency);
     ~ThreadPool();
 
+    uint32_t concurrency() const
+    {
+        return m_Threads.size();
+    }
+
     void wait();
     void addTask(const std::function<void()>& task);
 private:
@@ -23,5 +28,6 @@ private:
     std::condition_variable m_CV;
     std::vector<std::thread> m_Threads;
     std::mutex m_QueueLock;
+    std::atomic_uint32_t m_RunningTasks;
     std::deque<std::function<void()>> m_Tasks;
 };

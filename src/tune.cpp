@@ -1,5 +1,6 @@
 #include "tune.h"
 #include "eval_fn.h"
+#include "thread_pool.h"
 #include <iostream>
 #include <chrono>
 
@@ -24,6 +25,7 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
 
 double findKValue(std::span<const Position> positions, std::span<const Coefficient> coefficients, const EvalParams& params)
 {
+    ThreadPool threadPool(4);
     constexpr double SEARCH_MAX = 10;
     constexpr int ITERATIONS = 10;
 
@@ -36,7 +38,7 @@ double findKValue(std::span<const Position> positions, std::span<const Coefficie
         std::cout << "Start: " << start + step << " End: " << end + step << " Step: " << step << std::endl;
         for (double curr = start + step; curr < end + step; curr += step)
         {
-            double error = calcError(positions, coefficients, curr, params);
+            double error = calcError(threadPool, positions, coefficients, curr, params);
             std::cout << "K: " << curr << " Error: " << error << std::endl;
             if (error < bestError)
             {
@@ -54,16 +56,31 @@ double findKValue(std::span<const Position> positions, std::span<const Coefficie
     return bestK;
 }
 
-double calcError(std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params)
+double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params)
 {
-    double error = 0.0;
-    for (auto& pos : positions)
+    std::vector<double> threadErrors(threadPool.concurrency());
+    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
     {
-        double eval = evaluate(pos, coefficients, params);
-        double diff = sigmoid(eval, kValue) - pos.wdl;
-        error += diff * diff;
+        size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
+        size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
+        std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
+        threadPool.addTask([threadID, &threadErrors, threadPositions, coefficients, kValue, &params]()
+        {
+            double error = 0.0;
+            for (auto& pos : threadPositions)
+            {
+                double eval = evaluate(pos, coefficients, params);
+                double diff = sigmoid(eval, kValue) - pos.wdl;
+                error += diff * diff;
+            }
+            threadErrors[threadID] = error;
+        });
     }
-    return error / positions.size();
+    threadPool.wait();
+    double error = 0.0;
+    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+        error += threadErrors[threadID];
+    return error / static_cast<double>(positions.size());
 }
 
 void updateGradient(const Position& pos, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
@@ -81,24 +98,45 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
     }
 }
 
-void computeGradient(std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
+void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
 {
     std::fill(gradients.begin(), gradients.end(), Gradient{0, 0});
 
-    for (const auto& pos : positions)
-        updateGradient(pos, coefficients, kValue, params, gradients);
+    std::vector<std::vector<Gradient>> threadGradients(threadPool.concurrency(), gradients);
 
-    for (auto& grad : gradients)
+    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
     {
+        size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
+        size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
+        std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
+        threadPool.addTask([threadID, &threadGradients, threadPositions, coefficients, kValue, &params]()
+        {
+            for (const auto& pos : threadPositions)
+                updateGradient(pos, coefficients, kValue, params, threadGradients[threadID]);
+        });
+    }
+
+    threadPool.wait();
+
+    for (uint32_t i = 0; i < gradients.size(); i++)
+    {
+        Gradient grad = {};
+        for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+        {
+            grad.mg += threadGradients[threadID][i].mg;
+            grad.eg += threadGradients[threadID][i].eg;
+        }
         // technically, this is actually the gradient multiplied by 0.5
         grad.mg = grad.mg * kValue / positions.size();
         grad.eg = grad.eg * kValue / positions.size();
+        gradients[i] = grad;
     }
 }
 
 EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
 {
     // TODO: Make these configurable
+    ThreadPool threadPool(4);
     constexpr double LR = 1.0;
     constexpr double BETA1 = 0.9, BETA2 = 0.999;
     constexpr double EPSILON = 1e-8;
@@ -111,7 +149,7 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
 
     for (int epoch = 1; epoch <= 5000; epoch++)
     {
-        computeGradient(dataset.positions, dataset.allCoefficients, kValue, params, gradient);
+        computeGradient(threadPool, dataset.positions, dataset.allCoefficients, kValue, params, gradient);
 
         for (int i = 0; i < gradient.size(); i++)
         {
@@ -128,7 +166,7 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
 
         if (epoch % 100 == 0)
         {
-            double error = calcError(dataset.positions, dataset.allCoefficients, kValue, params);
+            double error = calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue, params);
             std::cout << "Epoch: " << epoch << std::endl;
             std::cout << "Error: " << error << std::endl;
 

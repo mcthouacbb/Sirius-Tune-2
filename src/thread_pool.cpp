@@ -1,7 +1,7 @@
 #include "thread_pool.h"
 
 ThreadPool::ThreadPool(uint32_t concurrency)
-    : m_ShouldStop(false)
+    : m_ShouldStop(false), m_RunningTasks(0)
 {
     for (uint32_t i = 0; i < concurrency; i++)
     {
@@ -22,7 +22,7 @@ void ThreadPool::wait()
     std::unique_lock<std::mutex> uniqueLock(m_QueueLock);
     m_CV.wait(uniqueLock, [this]()
     {
-        return m_Tasks.size() == 0;
+        return m_Tasks.size() == 0 && m_RunningTasks == 0;
     });
 }
 
@@ -46,7 +46,7 @@ void ThreadPool::threadLoop()
     while (true)
     {
         std::unique_lock<std::mutex> uniqueLock(m_QueueLock);
-        m_CV.notify_one();
+        m_CV.notify_all();
         m_CV.wait(uniqueLock, [this]()
         {
             return m_ShouldStop || m_Tasks.size() > 0;
@@ -57,8 +57,11 @@ void ThreadPool::threadLoop()
 
         std::function<void()> task = m_Tasks.front();
         m_Tasks.pop_front();
+        m_RunningTasks++;
         uniqueLock.unlock();
 
         task();
+
+        m_RunningTasks--;
     }
 }
