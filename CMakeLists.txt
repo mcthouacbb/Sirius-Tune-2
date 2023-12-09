@@ -15,6 +15,7 @@ set(SRCS
     "src/eval_fn.cpp"
     "src/eval_fn.h"
     "src/main.cpp"
+    "src/settings.h"
     "src/thread_pool.cpp"
     "src/thread_pool.h"
     "src/tune.cpp"
