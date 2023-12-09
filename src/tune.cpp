@@ -1,5 +1,7 @@
 #include "tune.h"
+#include "eval_fn.h"
 #include <iostream>
+#include <chrono>
 
 double sigmoid(double x, double k)
 {
@@ -92,4 +94,52 @@ void computeGradient(std::span<const Position> positions, Coeffs coefficients, d
         grad.mg = grad.mg * kValue / positions.size();
         grad.eg = grad.eg * kValue / positions.size();
     }
+}
+
+EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
+{
+    // TODO: Make these configurable
+    constexpr double LR = 1.0;
+    constexpr double BETA1 = 0.9, BETA2 = 0.999;
+    constexpr double EPSILON = 1e-8;
+    std::vector<Gradient> momentum(params.size(), {0, 0});
+    std::vector<Gradient> velocity(params.size(), {0, 0});
+    std::vector<Gradient> gradient(params.size(), {0, 0});
+
+    auto t1 = std::chrono::steady_clock::now();
+    auto startTime = t1;
+
+    for (int epoch = 1; epoch <= 5000; epoch++)
+    {
+        computeGradient(dataset.positions, dataset.allCoefficients, kValue, params, gradient);
+
+        for (int i = 0; i < gradient.size(); i++)
+        {
+            momentum[i].mg = BETA1 * momentum[i].mg + (1 - BETA1) * gradient[i].mg;
+            momentum[i].eg = BETA1 * momentum[i].eg + (1 - BETA1) * gradient[i].eg;
+
+            velocity[i].mg = BETA2 * velocity[i].mg + (1 - BETA2) * gradient[i].mg * gradient[i].mg;
+            velocity[i].eg = BETA2 * velocity[i].eg + (1 - BETA2) * gradient[i].eg * gradient[i].eg;
+
+            params[i].mg -= LR * momentum[i].mg / (std::sqrt(velocity[i].mg) + EPSILON);
+            params[i].eg -= LR * momentum[i].eg / (std::sqrt(velocity[i].eg) + EPSILON);
+        }
+
+
+        if (epoch % 100 == 0)
+        {
+            double error = calcError(dataset.positions, dataset.allCoefficients, kValue, params);
+            std::cout << "Epoch: " << epoch << std::endl;
+            std::cout << "Error: " << error << std::endl;
+
+            auto t2 = std::chrono::steady_clock::now();
+            std::cout << "Epochs/s: " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
+            std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count() << std::endl;
+
+            t1 = t2;
+            EvalFn::printEvalParams(params);
+            std::cout << std::endl;
+        }
+    }
+    return params;
 }
