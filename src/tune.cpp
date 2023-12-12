@@ -24,9 +24,8 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     return (mg * pos.phase + eg * (1.0 - pos.phase));
 }
 
-double findKValue(std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
+double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
 {
-    ThreadPool threadPool(4);
     constexpr double SEARCH_MAX = 10;
     constexpr int ITERATIONS = 10;
 
@@ -136,13 +135,13 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
 
 EvalParams tune(const Dataset& dataset)
 {
+    ThreadPool threadPool(TUNE_THREADS);
     EvalParams params = EvalFn::getInitialParams();
-    double kValue = TUNE_K <= 0 ? findKValue(dataset.positions, dataset.allCoefficients, params) : TUNE_K;
+    double kValue = TUNE_K <= 0 ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, params) : TUNE_K;
     std::cout << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)
         std::fill(params.begin(), params.end(), Gradient{0, 0});
 
-    ThreadPool threadPool(TUNE_THREADS);
     constexpr double LR = TUNE_LR;
 
     constexpr double BETA1 = 0.9, BETA2 = 0.999;

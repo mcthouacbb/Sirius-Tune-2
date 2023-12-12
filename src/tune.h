@@ -17,7 +17,7 @@ using Gradient = EvalParam;
 using Coeffs = std::span<const Coefficient>;
 using EvalParams = std::vector<EvalParam>;
 
-double findKValue(std::span<const Position> positions, Coeffs coefficients, const EvalParams& params);
+double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params);
 
 double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params);
 void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
