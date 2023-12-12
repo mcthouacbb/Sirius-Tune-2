@@ -1,6 +1,7 @@
 #include "tune.h"
 #include "eval_fn.h"
 #include "thread_pool.h"
+#include "settings.h"
 #include <iostream>
 #include <chrono>
 
@@ -23,7 +24,7 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     return (mg * pos.phase + eg * (1.0 - pos.phase));
 }
 
-double findKValue(std::span<const Position> positions, std::span<const Coefficient> coefficients, const EvalParams& params)
+double findKValue(std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
 {
     ThreadPool threadPool(4);
     constexpr double SEARCH_MAX = 10;
@@ -133,13 +134,20 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
     }
 }
 
-EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
+EvalParams tune(const Dataset& dataset)
 {
-    // TODO: Make these configurable
-    ThreadPool threadPool(4);
-    constexpr double LR = 1.0;
+    EvalParams params = EvalFn::getInitialParams();
+    double kValue = TUNE_K <= 0 ? findKValue(dataset.positions, dataset.allCoefficients, params) : TUNE_K;
+    std::cout << "Final k value: " << kValue << std::endl;
+    if constexpr (TUNE_FROM_ZERO)
+        std::fill(params.begin(), params.end(), Gradient{0, 0});
+
+    ThreadPool threadPool(TUNE_THREADS);
+    constexpr double LR = TUNE_LR;
+
     constexpr double BETA1 = 0.9, BETA2 = 0.999;
     constexpr double EPSILON = 1e-8;
+
     std::vector<Gradient> momentum(params.size(), {0, 0});
     std::vector<Gradient> velocity(params.size(), {0, 0});
     std::vector<Gradient> gradient(params.size(), {0, 0});
@@ -147,7 +155,7 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
     auto t1 = std::chrono::steady_clock::now();
     auto startTime = t1;
 
-    for (int epoch = 1; epoch <= 5000; epoch++)
+    for (int epoch = 1; epoch <= TUNE_MAX_EPOCHS; epoch++)
     {
         computeGradient(threadPool, dataset.positions, dataset.allCoefficients, kValue, params, gradient);
 
@@ -171,8 +179,10 @@ EvalParams tune(const Dataset& dataset, EvalParams params, double kValue)
             std::cout << "Error: " << error << std::endl;
 
             auto t2 = std::chrono::steady_clock::now();
-            std::cout << "Epochs/s: " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
-            std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count() << std::endl;
+            auto totalTime = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count();
+            std::cout << "Epochs/s (total): " << static_cast<double>(epoch) / totalTime << std::endl;
+            std::cout << "Epochs/s (avg of last 100): " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
+            std::cout << "Total time: " << totalTime << std::endl;
 
             t1 = t2;
             EvalFn::printEvalParams(params);
