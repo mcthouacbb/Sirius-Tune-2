@@ -2,4 +2,4 @@
 
 Complete rewrite of Sirius-Tune
 
-Uses (Chess-Library)[https://github.com/Disservin/chess-library] from (Disservin)[https://github.com/Disservin]
+Uses [Chess-Library](https://github.com/Disservin/chess-library) from [Disservin](https://github.com/Disservin)
