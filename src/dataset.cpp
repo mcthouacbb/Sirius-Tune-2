@@ -60,12 +60,12 @@ Dataset loadDataset(std::ifstream& file)
         pos.coeffEnd = coeffEnd;
         pos.wdl = wdlResult;
         pos.phase =
-            4 * chess::builtin::popcount(board.pieces(chess::PieceType::QUEEN)) +
-            2 * chess::builtin::popcount(board.pieces(chess::PieceType::ROOK)) +
-            chess::builtin::popcount(board.pieces(chess::PieceType::BISHOP)) +
-            chess::builtin::popcount(board.pieces(chess::PieceType::KNIGHT));
+            4 * board.pieces(chess::PieceType::QUEEN).count() +
+            2 * board.pieces(chess::PieceType::ROOK).count() +
+            board.pieces(chess::PieceType::BISHOP).count() +
+            board.pieces(chess::PieceType::KNIGHT).count();
         pos.phase /= 24.0;
-        
+
         positions.push_back(pos);
 
         if (positions.size() % 65536 == 0)
