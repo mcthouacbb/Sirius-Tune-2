@@ -11,14 +11,16 @@ int main()
     std::cin >> datasetFilepath >> outFilepath;
 
     std::ifstream datasetFile(datasetFilepath);
+    std::ofstream outFile(outFilepath);
 
     Dataset data = loadDataset(datasetFile);
 
-    EvalParams params = tune(data);
+    EvalParams params = tune(data, outFile);
     for (auto& param : params)
     {
         param.mg = std::round(param.mg);
         param.eg = std::round(param.eg);
     }
-    EvalFn::printEvalParamsExtracted(params);
+    EvalFn::printEvalParamsExtracted(params, std::cout);
+    EvalFn::printEvalParamsExtracted(params, outFile);
 }

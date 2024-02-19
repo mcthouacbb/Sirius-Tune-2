@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cmath>
 #include <span>
+#include <fstream>
 #include "dataset.h"
 #include "thread_pool.h"
 
@@ -22,4 +23,4 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
 double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params);
 void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
 
-EvalParams tune(const Dataset& dataset);
+EvalParams tune(const Dataset& dataset, std::ofstream& outFile);

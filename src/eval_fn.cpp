@@ -160,7 +160,6 @@ EvalParams EvalFn::getInitialParams()
             params[i * 64 + j].mg += DEFAULT_PARAMS.material[i][0];
             params[i * 64 + j].eg += DEFAULT_PARAMS.material[i][1];
         }
-    EvalFn::printEvalParams(params);
     return params;
 }
 
@@ -214,11 +213,11 @@ void printMaterial(PrintState& state)
     state.ss << "}\n";
 }
 
-void EvalFn::printEvalParams(const EvalParams& params)
+void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
 {
     PrintState state{params, 0};
     printPSQTs<0>(state);
-    std::cout << state.ss.str() << std::endl;
+    os << state.ss.str() << std::endl;
 }
 
 EvalParams extractMaterial(const EvalParams& params)
@@ -259,10 +258,10 @@ EvalParams extractMaterial(const EvalParams& params)
     return extracted;
 }
 
-void EvalFn::printEvalParamsExtracted(const EvalParams& params)
+void EvalFn::printEvalParamsExtracted(const EvalParams& params, std::ostream& os)
 {
     PrintState state{extractMaterial(params), 0};
     printMaterial(state);
     printPSQTs<4>(state);
-    std::cout << state.ss.str() << std::endl;
+    os << state.ss.str() << std::endl;
 }

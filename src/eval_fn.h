@@ -13,8 +13,8 @@ public:
     void reset();
     std::pair<size_t, size_t> getCoefficients(const chess::Board& board);
     static EvalParams getInitialParams();
-    static void printEvalParams(const EvalParams& params);
-    static void printEvalParamsExtracted(const EvalParams& params);
+    static void printEvalParams(const EvalParams& params, std::ostream& os);
+    static void printEvalParamsExtracted(const EvalParams& params, std::ostream& os);
 private:
     template<typename T>
     void addCoefficient(const T& trace)
@@ -30,7 +30,7 @@ private:
         for (auto traceElem : trace)
             addCoefficient(traceElem);
     }
-    
+
     template<typename T>
     void addCoefficientArray2D(const T& trace)
     {
