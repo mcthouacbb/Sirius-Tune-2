@@ -3,6 +3,36 @@
 #include <sstream>
 #include <iomanip>
 
+using namespace chess;
+
+constexpr std::array<std::array<Bitboard, 64>, 2> genPassedPawnMasks()
+{
+    constexpr Bitboard FILE_A = 0x101010101010101;
+    constexpr Bitboard FILE_H = FILE_A << 7;
+    std::array<std::array<Bitboard, 64>, 2> dst{};
+
+    for (int i = 0; i < 64; i++)
+    {
+        Bitboard bb = Bitboard::fromSquare(i) << 8;
+        bb |= bb << 8;
+        bb |= bb << 16;
+        bb |= bb << 32;
+
+        dst[0][i] = bb | ((bb & ~FILE_A) >> 1) | ((bb & ~FILE_H) << 1);
+
+        bb = Bitboard::fromSquare(i) >> 8;
+        bb |= bb >> 8;
+        bb |= bb >> 16;
+        bb |= bb >> 32;
+
+        dst[1][i] = bb | ((bb & ~FILE_A) >> 1) | ((bb & ~FILE_H) << 1);
+    }
+
+    return dst;
+}
+
+constexpr std::array<std::array<Bitboard, 64>, 2> passedPawnMasks = genPassedPawnMasks();
+
 using TraceElem = std::array<int, 2>;
 
 struct Trace
@@ -12,13 +42,13 @@ struct Trace
     TraceElem bishopMobility[14];
     TraceElem rookMobility[15];
     TraceElem queenMobility[28];
+    TraceElem passedPawn[8];
     TraceElem bishopPair;
     TraceElem openRook[2];
 };
 
 Trace getTrace(const chess::Board& board)
 {
-    using namespace chess;
     Trace trace = {};
 
     std::array<Bitboard, 2> pawns = {
@@ -41,9 +71,9 @@ Trace getTrace(const chess::Board& board)
         Color color = pce.color();
 
         // flip if white
-        int square = sq ^ (color == Color::WHITE ? 0b111000 : 0);
+        int psqtSquare = sq ^ (color == Color::WHITE ? 0b111000 : 0);
 
-        trace.psqt[static_cast<int>(type)][square][static_cast<int>(color)]++;
+        trace.psqt[static_cast<int>(type)][psqtSquare][static_cast<int>(color)]++;
 
         if (type == PieceType::ROOK)
         {
@@ -57,6 +87,12 @@ Trace getTrace(const chess::Board& board)
                     // semi open
                     trace.openRook[1][static_cast<int>(color)]++;
             }
+        }
+
+        if (type == PieceType::PAWN)
+        {
+            if ((passedPawnMasks[static_cast<int>(color)][sq] & pawns[static_cast<int>(~color)]).empty())
+                trace.passedPawn[Square(sq).relative_square(color).rank()][static_cast<int>(color)]++;
         }
 
         switch (type.internal())
@@ -121,6 +157,7 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const chess::Board& board)
     addCoefficientArray(trace.bishopMobility);
     addCoefficientArray(trace.rookMobility);
     addCoefficientArray(trace.queenMobility);
+    addCoefficientArray(trace.passedPawn);
     addCoefficient(trace.bishopPair);
     addCoefficientArray(trace.openRook);
     return {pos, m_Coefficients.size()};
@@ -136,6 +173,7 @@ struct InitialParams
     InitialParam bishopMobility[14];
     InitialParam rookMobility[15];
     InitialParam queenMobility[28];
+    InitialParam passedPawn[8];
     InitialParam bishopPair;
     InitialParam openRook[2];
 };
@@ -212,6 +250,7 @@ constexpr InitialParams DEFAULT_PARAMS = {
     {S( -47, -138), S( -63,  -83), S( -27,  -44), S( -15,  -20), S(  -3,  -11), S(   6,   -4), S(  13,    5), S(  20,    9), S(  23,   15), S(  27,   14), S(  30,   16), S(  42,    9), S(  53,    7), S(  59,   -2)},
     {S( -56, -154), S( -41,  -81), S( -16,  -40), S(  -7,  -26), S(  -1,  -18), S(   2,  -11), S(   5,   -5), S(   8,    0), S(  12,    1), S(  18,    4), S(  22,    7), S(  25,   10), S(  29,   11), S(  33,    9), S(  30,   10)},
     {S(   0,    0), S(   0,    0), S(-230,  -66), S( -32, -275), S( -50, -116), S( -21,  -93), S( -12,  -81), S(  -7,  -67), S(  -2,  -50), S(   1,  -25), S(   5,  -20), S(  10,  -14), S(  15,   -7), S(  20,   -7), S(  22,   -3), S(  24,    4), S(  25,    8), S(  25,   16), S(  25,   21), S(  26,   22), S(  33,   24), S(  39,   17), S(  53,   14), S(  66,    4), S(  79,    2), S( 186,  -48), S( 115,  -22), S(  82,  -12)},
+    {S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0)},
     S(20, 64),
     {S(31, 8), S(12, 9)}
 };
@@ -250,6 +289,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, DEFAULT_PARAMS.bishopMobility);
     addEvalParamArray(params, DEFAULT_PARAMS.rookMobility);
     addEvalParamArray(params, DEFAULT_PARAMS.queenMobility);
+    addEvalParamArray(params, DEFAULT_PARAMS.passedPawn);
     addEvalParam(params, DEFAULT_PARAMS.bishopPair);
     addEvalParamArray(params, DEFAULT_PARAMS.openRook);
     return params;
@@ -344,6 +384,10 @@ void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
     printPSQTs<0>(state);
     printMobility<0>(state);
 
+    state.ss << "passed pawn: ";
+    printArray<0>(state, 8);
+    state.ss << '\n';
+
     state.ss << "bishop pair: ";
     printSingle<0>(state);
     state.ss << '\n';
@@ -398,6 +442,10 @@ void EvalFn::printEvalParamsExtracted(const EvalParams& params, std::ostream& os
     printMaterial(state);
     printPSQTs<4>(state);
     printMobility<4>(state);
+
+    state.ss << "passed pawn: ";
+    printArray<4>(state, 8);
+    state.ss << '\n';
 
     state.ss << "bishop pair: ";
     printSingle<4>(state);
