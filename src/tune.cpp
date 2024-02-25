@@ -142,6 +142,8 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     outFile << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)
         std::fill(params.begin(), params.end(), Gradient{0, 0});
+    else if constexpr (TUNE_FROM_MATERIAL)
+        params = EvalFn::getMaterialParams();
 
     constexpr double LR = TUNE_LR;
 

@@ -297,6 +297,20 @@ EvalParams EvalFn::getInitialParams()
     return params;
 }
 
+EvalParams EvalFn::getMaterialParams()
+{
+    EvalParams params = getInitialParams();
+    std::fill(params.begin(), params.end(), EvalParam{0, 0});
+
+    for (int i = 0; i < 6; i++)
+        for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
+        {
+            params[i * 64 + j].mg += DEFAULT_PARAMS.material[i][0];
+            params[i * 64 + j].eg += DEFAULT_PARAMS.material[i][1];
+        }
+    return params;
+}
+
 struct PrintState
 {
     const EvalParams& params;

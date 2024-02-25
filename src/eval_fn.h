@@ -13,6 +13,7 @@ public:
     void reset();
     std::pair<size_t, size_t> getCoefficients(const chess::Board& board);
     static EvalParams getInitialParams();
+    static EvalParams getMaterialParams();
     static void printEvalParams(const EvalParams& params, std::ostream& os);
     static void printEvalParamsExtracted(const EvalParams& params, std::ostream& os);
 private:
