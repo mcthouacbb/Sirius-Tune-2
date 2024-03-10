@@ -81,7 +81,7 @@ void evalKingFile(Trace& trace, Bitboard ourPawns, File file, Square theirKing, 
 
     Bitboard filePawns = ourPawns & Bitboard(file);
     int rankDist = filePawns ?
-        std::abs(Square(us == Color::WHITE ? filePawns.lsb() : filePawns.msb()).rank() - theirKing.rank()) :
+        std::abs(Square(us == Color::BLACK ? filePawns.lsb() : filePawns.msb()).rank() - theirKing.rank()) :
         7;
     trace.pawnStorm[idx][rankDist][static_cast<int>(us)]++;
 }
