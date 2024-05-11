@@ -10,6 +10,16 @@ endif()
 project(Sirius-Tune-2)
 
 set(SRCS
+    "src/sirius/util/prng.h"
+    "src/sirius/attacks.cpp"
+    "src/sirius/attacks.h"
+    "src/sirius/bitboard.h"
+    "src/sirius/board.cpp"
+    "src/sirius/board.h"
+    "src/sirius/defs.h"
+    "src/sirius/zobrist.cpp"
+    "src/sirius/zobrist.h"
+
     "src/dataset.cpp"
     "src/dataset.h"
     "src/eval_fn.cpp"

@@ -3,9 +3,14 @@
 
 #include "tune.h"
 #include "eval_fn.h"
+#include "sirius/attacks.h"
+#include "sirius/zobrist.h"
 
 int main()
 {
+    attacks::init();
+    zobrist::init();
+
     std::string datasetFilepath;
     std::string outFilepath;
     std::cin >> datasetFilepath >> outFilepath;

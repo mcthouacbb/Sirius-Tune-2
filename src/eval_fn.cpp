@@ -1,69 +1,55 @@
 #include "eval_fn.h"
+#include "sirius/attacks.h"
 
 #include <sstream>
 #include <iomanip>
 
-using namespace chess;
-
-constexpr Bitboard FILE_A = 0x101010101010101;
-constexpr Bitboard FILE_H = FILE_A << 7;
-
-constexpr std::array<std::array<Bitboard, 64>, 2> genPassedPawnMasks()
+template<typename T>
+struct ColorArray : public std::array<T, 2>
 {
-    std::array<std::array<Bitboard, 64>, 2> dst = {};
+    using std::array<T, 2>::operator[];
 
-    for (int i = 0; i < 64; i++)
+    T& operator[](Color p)
     {
-        Bitboard bb = Bitboard::fromSquare(i) << 8;
-        bb |= bb << 8;
-        bb |= bb << 16;
-        bb |= bb << 32;
-
-        dst[0][i] = bb | ((bb & ~FILE_A) >> 1) | ((bb & ~FILE_H) << 1);
-
-        bb = Bitboard::fromSquare(i) >> 8;
-        bb |= bb >> 8;
-        bb |= bb >> 16;
-        bb |= bb >> 32;
-
-        dst[1][i] = bb | ((bb & ~FILE_A) >> 1) | ((bb & ~FILE_H) << 1);
+        return (*this)[static_cast<int>(p)];
     }
 
-    return dst;
-}
-
-constexpr std::array<Bitboard, 64> genIsolatedPawnMasks()
-{
-    std::array<Bitboard, 64> dst = {};
-    for (int i = 0; i < 64; i++)
+    const T& operator[](Color p) const
     {
-        Bitboard bb = Bitboard::fromSquare(i);
-        bb |= bb << 8;
-        bb |= bb << 16;
-        bb |= bb << 32;
-        bb |= bb >> 8;
-        bb |= bb >> 16;
-        bb |= bb >> 32;
-        dst[i] = ((bb & ~FILE_A) >> 1) | ((bb & ~FILE_H) << 1);
+        return (*this)[static_cast<int>(p)];
     }
-    return dst;
-}
+};
 
-constexpr std::array<std::array<Bitboard, 64>, 2> passedPawnMasks = genPassedPawnMasks();
-constexpr std::array<Bitboard, 64> isolatedPawnMasks = genIsolatedPawnMasks();
+template<typename T>
+struct PieceTypeArray : public std::array<T, 6>
+{
+    using std::array<T, 6>::operator[];
 
-using TraceElem = std::array<int, 2>;
+    T& operator[](PieceType p)
+    {
+        return (*this)[static_cast<int>(p)];
+    }
+
+    const T& operator[](PieceType p) const
+    {
+        return (*this)[static_cast<int>(p)];
+    }
+};
+
+using TraceElem = ColorArray<int>;
 
 struct Trace
 {
     TraceElem psqt[6][64];
 
-    TraceElem knightMobility[9];
-    TraceElem bishopMobility[14];
-    TraceElem rookMobility[15];
-    TraceElem queenMobility[28];
+    TraceElem mobility[4][28];
 
-    TraceElem threats[6][6];
+    TraceElem pawnThreatMinor;
+    TraceElem pawnThreatRook;
+    TraceElem pawnThreatQueen;
+    TraceElem minorThreatRook;
+    TraceElem minorThreatQueen;
+    TraceElem rookThreatQueen;
 
     TraceElem passedPawn[8];
     TraceElem isolatedPawn[8];
@@ -74,171 +60,192 @@ struct Trace
     TraceElem openRook[2];
 };
 
-// literally copy pasted from stash
-void evalKingFile(Trace& trace, Bitboard ourPawns, File file, Square theirKing, Square ourKing, Color us)
+struct EvalData
 {
-    Bitboard filePawns = ourPawns & Bitboard(file);
-    // pawn storm - our pawns their king
-    {
-        File kingFile = theirKing.file();
-        int idx = (kingFile == file) ? 1 : (kingFile >= File::FILE_E) == (kingFile < file) ? 0 : 2;
+    ColorArray<Bitboard> mobilityArea;
+    ColorArray<Bitboard> attacked;
+    ColorArray<PieceTypeArray<Bitboard>> attackedBy;
+};
 
-        int rankDist = filePawns ?
-            std::abs(Square(us == Color::BLACK ? filePawns.lsb() : filePawns.msb()).rank() - theirKing.rank()) :
-            7;
-        trace.pawnStorm[idx][rankDist][static_cast<int>(us)]++;
-    }
-    // pawn shield - our pawns our king
-    {
-        File kingFile = ourKing.file();
-        int idx = (kingFile == file) ? 1 : (kingFile >= File::FILE_E) == (kingFile < file) ? 0 : 2;
+#define TRACE_INC(traceElem) trace.traceElem[us]++
+#define TRACE_ADD(traceElem, amount) trace.traceElem[us] += amount
 
-        int rankDist = filePawns ?
-            std::abs(Square(us == Color::WHITE ? filePawns.lsb() : filePawns.msb()).rank() - ourKing.rank()) :
-            7;
-        trace.pawnShield[idx][rankDist][static_cast<int>(us)]++;
+template<Color us, PieceType piece>
+void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
+{
+    constexpr Color them = ~us;
+    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.getPieces(them, PieceType::PAWN);
+
+    Bitboard pieces = board.getPieces(us, piece);
+    if constexpr (piece == PieceType::BISHOP)
+        if (pieces.multiple())
+            TRACE_INC(bishopPair);
+
+    while (pieces)
+    {
+        uint32_t sq = pieces.poplsb();
+        Bitboard attacks = attacks::pieceAttacks<piece>(sq, board.getAllPieces());
+        evalData.attackedBy[us][piece] |= attacks;
+        evalData.attacked[us] |= attacks;
+
+        TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)][(attacks & evalData.mobilityArea[us]).popcount()]);
+
+        Bitboard fileBB = Bitboard::fileBB(fileOf(sq));
+
+        if constexpr (piece == PieceType::ROOK)
+        {
+            if ((ourPawns & fileBB).empty())
+            {
+                if ((theirPawns & fileBB).any())
+                    TRACE_INC(openRook[1]);
+                else
+                    TRACE_INC(openRook[0]);
+            }
+        }
     }
 }
 
-Trace getTrace(const chess::Board& board)
+
+
+template<Color us>
+void evaluatePawns(const Board& board, Trace& trace)
 {
+    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
+
+    Bitboard pawns = ourPawns;
+    while (pawns)
+    {
+        uint32_t sq = pawns.poplsb();
+        if (board.isPassedPawn(sq))
+            TRACE_INC(passedPawn[relativeRankOf<us>(sq)]);
+        if (board.isIsolatedPawn(sq))
+            TRACE_INC(isolatedPawn[fileOf(sq)]);
+    }
+}
+
+void evaluatePawns(const Board& board, Trace& trace)
+{
+    evaluatePawns<Color::WHITE>(board, trace);
+    evaluatePawns<Color::BLACK>(board, trace);
+}
+
+// I'll figure out how to add the other pieces here later
+template<Color us>
+void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
+{
+    constexpr Color them = ~us;
+    Bitboard minors = (board.getPieces(PieceType::KNIGHT) | board.getPieces(PieceType::BISHOP)) & board.getColor(them);
+    Bitboard rooks = board.getPieces(them, PieceType::ROOK);
+    Bitboard queens = board.getPieces(them, PieceType::QUEEN);
+
+    Bitboard threats = evalData.attackedBy[us][PieceType::PAWN] & minors;
+    TRACE_ADD(pawnThreatMinor, threats.popcount());
+
+    threats = evalData.attackedBy[us][PieceType::PAWN] & rooks;
+    TRACE_ADD(pawnThreatRook, threats.popcount());
+
+    threats = evalData.attackedBy[us][PieceType::PAWN] & queens;
+    TRACE_ADD(pawnThreatQueen, threats.popcount());
+
+    Bitboard attackedByMinor = evalData.attackedBy[us][PieceType::BISHOP] | evalData.attackedBy[us][PieceType::KNIGHT];
+    threats = attackedByMinor & rooks;
+    TRACE_ADD(minorThreatRook, threats.popcount());
+
+    threats = attackedByMinor & queens;
+    TRACE_ADD(minorThreatQueen, threats.popcount());
+
+    threats = evalData.attackedBy[us][PieceType::ROOK] & queens;
+    TRACE_ADD(rookThreatQueen, threats.popcount());
+}
+
+template<Color us>
+void evaluateKings(const Board& board, Trace& trace)
+{
+    constexpr Color them = ~us;
+    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
+
+    uint32_t ourKing = board.getPieces(us, PieceType::KING).lsb();
+    uint32_t theirKing = board.getPieces(them, PieceType::KING).lsb();
+
+    for (uint32_t file = 0; file < 8; file++)
+    {
+        Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
+        {
+            uint32_t kingFile = fileOf(theirKing);
+            // 4 = e file
+            int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
+
+            int rankDist = filePawns ?
+                std::abs(rankOf(us == Color::WHITE ? filePawns.msb() : filePawns.lsb()) - rankOf(theirKing)) :
+                7;
+            TRACE_INC(pawnStorm[idx][rankDist]);
+        }
+        {
+            uint32_t kingFile = fileOf(ourKing);
+            // 4 = e file
+            int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
+            int rankDist = filePawns ?
+                std::abs(rankOf(us == Color::WHITE ? filePawns.lsb() : filePawns.msb()) - rankOf(ourKing)) :
+                7;
+            TRACE_INC(pawnShield[idx][rankDist]);
+        }
+    }
+}
+
+void initEvalData(const Board& board, EvalData& evalData)
+{
+    Bitboard whitePawns = board.getPieces(Color::WHITE, PieceType::PAWN);
+    Bitboard blackPawns = board.getPieces(Color::BLACK, PieceType::PAWN);
+    Bitboard whitePawnAttacks = attacks::pawnAttacks<Color::WHITE>(whitePawns);
+    Bitboard blackPawnAttacks = attacks::pawnAttacks<Color::BLACK>(blackPawns);
+
+    evalData.mobilityArea[Color::WHITE] = ~blackPawnAttacks;
+    evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = whitePawnAttacks;
+    evalData.mobilityArea[Color::BLACK] = ~whitePawnAttacks;
+    evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = blackPawnAttacks;
+}
+
+void evaluatePsqt(const Board& board, Trace& trace)
+{
+    for (Color c : {Color::WHITE, Color::BLACK})
+        for (PieceType pt : {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN, PieceType::KING})
+        {
+            Bitboard pieces = board.getPieces(c, pt);
+            while (pieces.any())
+            {
+                uint32_t sq = pieces.poplsb();
+                if (c == Color::WHITE)
+                    sq ^= 56;
+                trace.psqt[static_cast<int>(pt)][sq][c]++;
+            }
+        }
+}
+
+Trace getTrace(const Board& board)
+{
+    EvalData evalData = {};
+    initEvalData(board, evalData);
+
     Trace trace = {};
 
-    std::array<Bitboard, 2> pawns = {
-        board.pieces(PieceType::PAWN, Color::WHITE),
-        board.pieces(PieceType::PAWN, Color::BLACK)
-    };
+    evaluatePsqt(board, trace);
 
-    std::array<Bitboard, 2> pawnAttacks = {
-        attacks::pawnLeftAttacks<Color::WHITE>(pawns[0]) | attacks::pawnRightAttacks<Color::WHITE>(pawns[0]),
-        attacks::pawnLeftAttacks<Color::BLACK>(pawns[1]) | attacks::pawnRightAttacks<Color::BLACK>(pawns[1])
-    };
+    evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace);
+    evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
+    evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace);
+    evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
+    evaluatePieces<Color::WHITE, PieceType::ROOK>(board, evalData, trace);
+    evaluatePieces<Color::BLACK, PieceType::ROOK>(board, evalData, trace);
+    evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace);
+    evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace);
 
-    std::array<Bitboard, 2> mobilityArea = {
-        ~pawnAttacks[1],
-        ~pawnAttacks[0]
-    };
+    evaluateKings<Color::WHITE>(board, trace);
+    evaluateKings<Color::BLACK>(board, trace);
 
-    std::array<Bitboard, 2> pawnThreats = {
-        pawnAttacks[0] & board.them(Color::WHITE),
-        pawnAttacks[1] & board.them(Color::BLACK)
-    };
-
-    for (int i = 0; i < 2; i++)
-    {
-        Bitboard threats = pawnThreats[i];
-        while (threats)
-        {
-            uint32_t threatened = threats.pop();
-            trace.threats[static_cast<int>(PieceType::PAWN)][static_cast<int>(board.at<PieceType>(threatened))][i]++;
-        }
-    }
-
-    for (int sq = 0; sq < 64; sq++)
-    {
-        Piece pce = board.at(static_cast<Square>(sq));
-        if (pce == Piece::NONE)
-            continue;
-
-        PieceType type = pce.type();
-        Color color = pce.color();
-
-        // flip if white
-        int psqtSquare = sq ^ (color == Color::WHITE ? 0b111000 : 0);
-
-        trace.psqt[static_cast<int>(type)][psqtSquare][static_cast<int>(color)]++;
-
-        if (type == PieceType::ROOK)
-        {
-            Bitboard fileBB = Bitboard(Square(sq).file());
-            if ((fileBB & pawns[static_cast<int>(color)]).empty())
-            {
-                if ((fileBB & pawns[static_cast<int>(~color)]).empty())
-                    // fully open
-                    trace.openRook[0][static_cast<int>(color)]++;
-                else
-                    // semi open
-                    trace.openRook[1][static_cast<int>(color)]++;
-            }
-        }
-
-        if (type == PieceType::PAWN)
-        {
-            if ((passedPawnMasks[static_cast<int>(color)][sq] & pawns[static_cast<int>(~color)]).empty())
-                trace.passedPawn[Square(sq).relative_square(color).rank()][static_cast<int>(color)]++;
-            if ((isolatedPawnMasks[sq] & pawns[static_cast<int>(color)]).empty())
-                trace.isolatedPawn[Square(sq).file()][static_cast<int>(color)]++;
-        }
-
-        switch (type.internal())
-        {
-            case PieceType::KNIGHT:
-            {
-                Bitboard attacksBB = attacks::knight(sq);
-                int mobility = (attacksBB & mobilityArea[static_cast<int>(color)]).count();
-                trace.knightMobility[mobility][static_cast<int>(color)]++;
-                Bitboard threats = attacksBB & board.them(static_cast<Color>(color));
-                while (threats)
-                {
-                    uint32_t threatened = threats.pop();
-                    trace.threats[static_cast<int>(PieceType::KNIGHT)][static_cast<int>(board.at<PieceType>(threatened))][static_cast<int>(color)]++;
-                }
-                break;
-            }
-            case PieceType::BISHOP:
-            {
-                Bitboard attacksBB = attacks::bishop(sq, board.occ());
-                int mobility = (attacksBB & mobilityArea[static_cast<int>(color)]).count();
-                trace.bishopMobility[mobility][static_cast<int>(color)]++;
-                Bitboard threats = attacksBB & board.them(static_cast<Color>(color));
-                while (threats)
-                {
-                    uint32_t threatened = threats.pop();
-                    trace.threats[static_cast<int>(PieceType::BISHOP)][static_cast<int>(board.at<PieceType>(threatened))][static_cast<int>(color)]++;
-                }
-                break;
-            }
-            case PieceType::ROOK:
-            {
-                Bitboard attacksBB = attacks::rook(sq, board.occ());
-                int mobility = (attacksBB & mobilityArea[static_cast<int>(color)]).count();
-                trace.rookMobility[mobility][static_cast<int>(color)]++;
-                Bitboard threats = attacksBB & board.them(static_cast<Color>(color));
-                while (threats)
-                {
-                    uint32_t threatened = threats.pop();
-                    trace.threats[static_cast<int>(PieceType::ROOK)][static_cast<int>(board.at<PieceType>(threatened))][static_cast<int>(color)]++;
-                }
-                break;
-            }
-            case PieceType::QUEEN:
-            {
-                Bitboard attacksBB = attacks::queen(sq, board.occ());
-                int mobility = (attacksBB & mobilityArea[static_cast<int>(color)]).count();
-                trace.queenMobility[mobility][static_cast<int>(color)]++;
-                Bitboard threats = attacksBB & board.them(static_cast<Color>(color));
-                while (threats)
-                {
-                    uint32_t threatened = threats.pop();
-                    trace.threats[static_cast<int>(PieceType::QUEEN)][static_cast<int>(board.at<PieceType>(threatened))][static_cast<int>(color)]++;
-                }
-                break;
-            }
-        }
-    }
-
-    for (Color us : {Color::WHITE, Color::BLACK})
-    {
-        for (int file = 0; file < 8; file++)
-        {
-            evalKingFile(trace, pawns[static_cast<int>(us)], File(file), board.kingSq(~us), board.kingSq(us), us);
-        }
-    }
-
-    if (board.pieces(PieceType::BISHOP, Color::WHITE).count() >= 2)
-        trace.bishopPair[static_cast<int>(Color::WHITE)] = 1;
-    if (board.pieces(PieceType::BISHOP, Color::BLACK).count() >= 2)
-        trace.bishopPair[static_cast<int>(Color::BLACK)] = 1;
+    evaluatePawns(board, trace);
+    evaluateThreats<Color::WHITE>(board, evalData, trace);
+    evaluateThreats<Color::BLACK>(board, evalData, trace);
 
     return trace;
 }
@@ -254,19 +261,21 @@ void EvalFn::reset()
     m_TraceIdx = 0;
 }
 
-std::pair<size_t, size_t> EvalFn::getCoefficients(const chess::Board& board)
+std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
 {
     reset();
     size_t pos = m_Coefficients.size();
     Trace trace = getTrace(board);
     addCoefficientArray2D(trace.psqt);
 
-    addCoefficientArray(trace.knightMobility);
-    addCoefficientArray(trace.bishopMobility);
-    addCoefficientArray(trace.rookMobility);
-    addCoefficientArray(trace.queenMobility);
+    addCoefficientArray2D(trace.mobility);
 
-    addCoefficientArray2D(trace.threats);
+    addCoefficient(trace.pawnThreatMinor);
+    addCoefficient(trace.pawnThreatRook);
+    addCoefficient(trace.pawnThreatQueen);
+    addCoefficient(trace.minorThreatRook);
+    addCoefficient(trace.minorThreatQueen);
+    addCoefficient(trace.rookThreatQueen);
 
     addCoefficientArray(trace.passedPawn);
     addCoefficientArray(trace.isolatedPawn);
@@ -354,14 +363,12 @@ constexpr InitialParam MOBILITY[4][28] = {
 	{S(   0,    0), S(   0,    0), S(-189,  -58), S( -18, -264), S( -42, -115), S( -12,  -95), S(  -6,  -75), S(  -2,  -55), S(   2,  -37), S(   4,  -10), S(   8,   -3), S(  12,    4), S(  15,   13), S(  20,   14), S(  23,   18), S(  24,   26), S(  26,   29), S(  26,   39), S(  27,   45), S(  28,   48), S(  34,   53), S(  43,   43), S(  56,   45), S(  71,   35), S(  77,   39), S( 185,  -13), S(  99,   23), S(  90,   16)}
 };
 
-constexpr InitialParam THREATS[6][6] = {
-	{S(  22,    2), S(  40,    4), S(  43,   35), S(  60,  -16), S(  44,  -42), S(   0,    0)},
-	{S(  -6,    5), S(   0,    0), S(  22,   21), S(  47,  -14), S(  22,  -41), S(   0,    0)},
-	{S(   3,   15), S(  21,   21), S(   0,    0), S(  30,    0), S(  35,   64), S(   0,    0)},
-	{S(  -7,   11), S(   3,   14), S(  12,   11), S(   0,    0), S(  41,   -5), S(   0,    0)},
-	{S(  -2,    9), S(   1,    7), S(  -2,   24), S(   2,   -4), S(   0,    0), S(   0,    0)},
-	{S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0)}
-};
+constexpr InitialParam PAWN_THREAT_MINOR = S(   0,    0);
+constexpr InitialParam PAWN_THREAT_ROOK = S(   0,    0);
+constexpr InitialParam PAWN_THREAT_QUEEN = S(   0,    0);
+constexpr InitialParam MINOR_THREAT_ROOK = S(   0,    0);
+constexpr InitialParam MINOR_THREAT_QUEEN = S(   0,    0);
+constexpr InitialParam ROOK_THREAT_QUEEN = S(   0,    0);
 
 constexpr InitialParam PASSED_PAWN[8] = {S(   0,    0), S(  -5,    5), S( -11,   11), S( -12,   36), S(  10,   60), S(   5,  121), S(  36,  112), S(   0,    0)};
 constexpr InitialParam ISOLATED_PAWN[8] = {S(  -4,   -0), S(  -7,  -16), S( -16,  -10), S( -15,  -19), S( -17,  -20), S( -10,   -8), S(  -7,  -15), S(  -8,    4)};
@@ -378,6 +385,7 @@ constexpr InitialParam PAWN_SHIELD[3][8] = {
 
 constexpr InitialParam BISHOP_PAIR = S(  20,   61);
 constexpr InitialParam ROOK_OPEN[2] = {S(  27,   10), S(  15,    7)};
+
 
 template<typename T>
 void addEvalParam(EvalParams& params, const T& t)
@@ -409,11 +417,13 @@ EvalParams EvalFn::getInitialParams()
             params[i * 64 + j].mg += MATERIAL[i][0];
             params[i * 64 + j].eg += MATERIAL[i][1];
         }
-    addEvalParamArray(params, std::span<const InitialParam>(MOBILITY[0], MOBILITY[0] + 9));
-    addEvalParamArray(params, std::span<const InitialParam>(MOBILITY[1], MOBILITY[1] + 14));
-    addEvalParamArray(params, std::span<const InitialParam>(MOBILITY[2], MOBILITY[2] + 15));
-    addEvalParamArray(params, std::span<const InitialParam>(MOBILITY[3], MOBILITY[3] + 28));
-    addEvalParamArray2D(params, THREATS);
+    addEvalParamArray2D(params, MOBILITY);
+    addEvalParam(params, PAWN_THREAT_MINOR);
+    addEvalParam(params, PAWN_THREAT_ROOK);
+    addEvalParam(params, PAWN_THREAT_QUEEN);
+    addEvalParam(params, MINOR_THREAT_ROOK);
+    addEvalParam(params, MINOR_THREAT_QUEEN);
+    addEvalParam(params, ROOK_THREAT_QUEEN);
     addEvalParamArray(params, PASSED_PAWN);
     addEvalParamArray(params, ISOLATED_PAWN);
     addEvalParamArray2D(params, PAWN_STORM);
@@ -516,27 +526,34 @@ void printArray2D(PrintState& state, int outerLen, int innerLen)
 }
 
 template<int ALIGN_SIZE>
-void printMobility(PrintState& state)
-{
-    state.ss << "constexpr PackedScore MOBILITY[4][28] = {\n\t";
-    printArray<ALIGN_SIZE>(state, 9);
-    state.ss << ",\n\t";
-
-    printArray<ALIGN_SIZE>(state, 14);
-    state.ss << ",\n\t";
-
-    printArray<ALIGN_SIZE>(state, 15);
-    state.ss << ",\n\t";
-
-    printArray<ALIGN_SIZE>(state, 28);
-    state.ss << "\n};\n";
-}
-
-template<int ALIGN_SIZE>
 void printRestParams(PrintState& state)
 {
-    state.ss << "constexpr PackedScore THREATS[6][6] = ";
-    printArray2D<ALIGN_SIZE>(state, 6, 6);
+    state.ss << "constexpr PackedScore MOBILITY[4][28] = ";
+    printArray2D<ALIGN_SIZE>(state, 4, 28);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore PAWN_THREAT_MINOR = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore PAWN_THREAT_ROOK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore PAWN_THREAT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore MINOR_THREAT_ROOK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore MINOR_THREAT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore ROOK_THREAT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PASSED_PAWN[8] = ";
@@ -568,7 +585,6 @@ void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
 {
     PrintState state{params, 0};
     printPSQTs<0>(state);
-    printMobility<0>(state);
     printRestParams<0>(state);
     os << state.ss.str() << std::endl;
 }
@@ -616,7 +632,6 @@ void EvalFn::printEvalParamsExtracted(const EvalParams& params, std::ostream& os
     PrintState state{extractMaterial(params), 0};
     printMaterial(state);
     printPSQTs<4>(state);
-    printMobility<4>(state);
     printRestParams<4>(state);
     os << state.ss.str() << std::endl;
 }
