@@ -44,12 +44,7 @@ struct Trace
 
     TraceElem mobility[4][28];
 
-    TraceElem pawnThreatMinor;
-    TraceElem pawnThreatRook;
-    TraceElem pawnThreatQueen;
-    TraceElem minorThreatRook;
-    TraceElem minorThreatQueen;
-    TraceElem rookThreatQueen;
+    TraceElem threats[6][6];
 
     TraceElem passedPawn[8];
     TraceElem isolatedPawn[8];
@@ -90,6 +85,10 @@ void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         evalData.attacked[us] |= attacks;
 
         TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)][(attacks & evalData.mobilityArea[us]).popcount()]);
+
+        Bitboard threats = attacks & board.getColor(them);
+        while (threats)
+            TRACE_INC(threats[static_cast<int>(piece)][static_cast<int>(getPieceType(board.getPieceAt(threats.poplsb())))]);
 
         Bitboard fileBB = Bitboard::fileBB(fileOf(sq));
 
@@ -135,28 +134,10 @@ template<Color us>
 void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard minors = (board.getPieces(PieceType::KNIGHT) | board.getPieces(PieceType::BISHOP)) & board.getColor(them);
-    Bitboard rooks = board.getPieces(them, PieceType::ROOK);
-    Bitboard queens = board.getPieces(them, PieceType::QUEEN);
-
-    Bitboard threats = evalData.attackedBy[us][PieceType::PAWN] & minors;
-    TRACE_ADD(pawnThreatMinor, threats.popcount());
-
-    threats = evalData.attackedBy[us][PieceType::PAWN] & rooks;
-    TRACE_ADD(pawnThreatRook, threats.popcount());
-
-    threats = evalData.attackedBy[us][PieceType::PAWN] & queens;
-    TRACE_ADD(pawnThreatQueen, threats.popcount());
-
-    Bitboard attackedByMinor = evalData.attackedBy[us][PieceType::BISHOP] | evalData.attackedBy[us][PieceType::KNIGHT];
-    threats = attackedByMinor & rooks;
-    TRACE_ADD(minorThreatRook, threats.popcount());
-
-    threats = attackedByMinor & queens;
-    TRACE_ADD(minorThreatQueen, threats.popcount());
-
-    threats = evalData.attackedBy[us][PieceType::ROOK] & queens;
-    TRACE_ADD(rookThreatQueen, threats.popcount());
+    Bitboard threats = evalData.attackedBy[us][PieceType::PAWN] & board.getColor(them);
+    PackedScore eval{0, 0};
+    while (threats)
+        TRACE_INC(threats[static_cast<int>(PieceType::PAWN)][static_cast<int>(getPieceType(board.getPieceAt(threats.poplsb())))]);
 }
 
 template<Color us>
@@ -270,12 +251,7 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
 
     addCoefficientArray2D(trace.mobility);
 
-    addCoefficient(trace.pawnThreatMinor);
-    addCoefficient(trace.pawnThreatRook);
-    addCoefficient(trace.pawnThreatQueen);
-    addCoefficient(trace.minorThreatRook);
-    addCoefficient(trace.minorThreatQueen);
-    addCoefficient(trace.rookThreatQueen);
+    addCoefficientArray2D(trace.threats);
 
     addCoefficientArray(trace.passedPawn);
     addCoefficientArray(trace.isolatedPawn);
@@ -363,12 +339,14 @@ constexpr InitialParam MOBILITY[4][28] = {
 	{S(   0,    0), S(   0,    0), S(-189,  -58), S( -18, -264), S( -42, -115), S( -12,  -95), S(  -6,  -75), S(  -2,  -55), S(   2,  -37), S(   4,  -10), S(   8,   -3), S(  12,    4), S(  15,   13), S(  20,   14), S(  23,   18), S(  24,   26), S(  26,   29), S(  26,   39), S(  27,   45), S(  28,   48), S(  34,   53), S(  43,   43), S(  56,   45), S(  71,   35), S(  77,   39), S( 185,  -13), S(  99,   23), S(  90,   16)}
 };
 
-constexpr InitialParam PAWN_THREAT_MINOR = S(   0,    0);
-constexpr InitialParam PAWN_THREAT_ROOK = S(   0,    0);
-constexpr InitialParam PAWN_THREAT_QUEEN = S(   0,    0);
-constexpr InitialParam MINOR_THREAT_ROOK = S(   0,    0);
-constexpr InitialParam MINOR_THREAT_QUEEN = S(   0,    0);
-constexpr InitialParam ROOK_THREAT_QUEEN = S(   0,    0);
+constexpr InitialParam THREATS[6][6] = {
+	{S(  22,    2), S(  40,    4), S(  43,   35), S(  60,  -16), S(  44,  -42), S(   0,    0)},
+	{S(  -6,    5), S(   0,    0), S(  22,   21), S(  47,  -14), S(  22,  -41), S(   0,    0)},
+	{S(   3,   15), S(  21,   21), S(   0,    0), S(  30,    0), S(  35,   64), S(   0,    0)},
+	{S(  -7,   11), S(   3,   14), S(  12,   11), S(   0,    0), S(  41,   -5), S(   0,    0)},
+	{S(  -2,    9), S(   1,    7), S(  -2,   24), S(   2,   -4), S(   0,    0), S(   0,    0)},
+	{S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0)}
+};
 
 constexpr InitialParam PASSED_PAWN[8] = {S(   0,    0), S(  -5,    5), S( -11,   11), S( -12,   36), S(  10,   60), S(   5,  121), S(  36,  112), S(   0,    0)};
 constexpr InitialParam ISOLATED_PAWN[8] = {S(  -4,   -0), S(  -7,  -16), S( -16,  -10), S( -15,  -19), S( -17,  -20), S( -10,   -8), S(  -7,  -15), S(  -8,    4)};
@@ -418,12 +396,7 @@ EvalParams EvalFn::getInitialParams()
             params[i * 64 + j].eg += MATERIAL[i][1];
         }
     addEvalParamArray2D(params, MOBILITY);
-    addEvalParam(params, PAWN_THREAT_MINOR);
-    addEvalParam(params, PAWN_THREAT_ROOK);
-    addEvalParam(params, PAWN_THREAT_QUEEN);
-    addEvalParam(params, MINOR_THREAT_ROOK);
-    addEvalParam(params, MINOR_THREAT_QUEEN);
-    addEvalParam(params, ROOK_THREAT_QUEEN);
+    addEvalParamArray2D(params, THREATS);
     addEvalParamArray(params, PASSED_PAWN);
     addEvalParamArray(params, ISOLATED_PAWN);
     addEvalParamArray2D(params, PAWN_STORM);
@@ -532,28 +505,8 @@ void printRestParams(PrintState& state)
     printArray2D<ALIGN_SIZE>(state, 4, 28);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_THREAT_MINOR = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore PAWN_THREAT_ROOK = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore PAWN_THREAT_QUEEN = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore MINOR_THREAT_ROOK = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore MINOR_THREAT_QUEEN = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore ROOK_THREAT_QUEEN = ";
-    printSingle<ALIGN_SIZE>(state);
+    state.ss << "constexpr PackedScore THREATS[6][6] = ";
+    printArray2D<ALIGN_SIZE>(state, 6, 6);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PASSED_PAWN[8] = ";
