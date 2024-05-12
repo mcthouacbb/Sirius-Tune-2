@@ -2,7 +2,7 @@
 
 #include "dataset.h"
 #include "tune.h"
-#include "chess.hpp"
+#include "sirius/board.h"
 #include <algorithm>
 
 class EvalFn
@@ -11,7 +11,7 @@ public:
     EvalFn(std::vector<Coefficient>& coefficients);
 
     void reset();
-    std::pair<size_t, size_t> getCoefficients(const chess::Board& board);
+    std::pair<size_t, size_t> getCoefficients(const Board& board);
     static EvalParams getInitialParams();
     static EvalParams getMaterialParams();
     static void printEvalParams(const EvalParams& params, std::ostream& os);
