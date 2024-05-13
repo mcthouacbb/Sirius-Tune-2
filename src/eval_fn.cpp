@@ -53,6 +53,10 @@ struct Trace
 
     TraceElem pawnStorm[3][8];
     TraceElem pawnShield[3][8];
+    TraceElem safeKnightCheck;
+    TraceElem safeBishopCheck;
+    TraceElem safeRookCheck;
+    TraceElem safeQueenCheck;
 
     TraceElem bishopPair;
     TraceElem openRook[2];
@@ -148,13 +152,12 @@ void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard threats = evalData.attackedBy[us][PieceType::PAWN] & board.getColor(them);
-    PackedScore eval{0, 0};
     while (threats)
         TRACE_INC(threats[static_cast<int>(PieceType::PAWN)][static_cast<int>(getPieceType(board.getPieceAt(threats.poplsb())))]);
 }
 
 template<Color us>
-void evaluateKings(const Board& board, Trace& trace)
+void evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
@@ -185,6 +188,21 @@ void evaluateKings(const Board& board, Trace& trace)
             TRACE_INC(pawnShield[idx][rankDist]);
         }
     }
+
+    Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.getAllPieces());
+    Bitboard bishopCheckSquares = attacks::rookAttacks(theirKing, board.getAllPieces());
+
+    Bitboard knightChecks = evalData.attackedBy[us][PieceType::KNIGHT] & attacks::knightAttacks(theirKing);
+    Bitboard bishopChecks = evalData.attackedBy[us][PieceType::BISHOP] & bishopCheckSquares;
+    Bitboard rookChecks = evalData.attackedBy[us][PieceType::ROOK] & rookCheckSquares;
+    Bitboard queenChecks = evalData.attackedBy[us][PieceType::QUEEN] & (bishopCheckSquares | rookCheckSquares);
+
+    Bitboard safe = ~evalData.attacked[them];
+
+    TRACE_ADD(safeKnightCheck, (knightChecks & safe).popcount());
+    TRACE_ADD(safeBishopCheck, (bishopChecks & safe).popcount());
+    TRACE_ADD(safeRookCheck, (rookChecks & safe).popcount());
+    TRACE_ADD(safeQueenCheck, (queenChecks & safe).popcount());
 }
 
 void initEvalData(const Board& board, EvalData& evalData)
@@ -234,8 +252,8 @@ Trace getTrace(const Board& board)
     evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace);
     evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace);
 
-    evaluateKings<Color::WHITE>(board, trace);
-    evaluateKings<Color::BLACK>(board, trace);
+    evaluateKings<Color::WHITE>(board, evalData, trace);
+    evaluateKings<Color::BLACK>(board, evalData, trace);
 
     evaluatePawns(board, trace);
     evaluateThreats<Color::WHITE>(board, evalData, trace);
@@ -273,6 +291,10 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
 
     addCoefficientArray2D(trace.pawnStorm);
     addCoefficientArray2D(trace.pawnShield);
+    addCoefficient(trace.safeKnightCheck);
+    addCoefficient(trace.safeBishopCheck);
+    addCoefficient(trace.safeRookCheck);
+    addCoefficient(trace.safeQueenCheck);
 
     addCoefficient(trace.bishopPair);
     addCoefficientArray(trace.openRook);
@@ -379,10 +401,13 @@ constexpr InitialParam PAWN_SHIELD[3][8] = {
 	{S(   0,    0), S(  24,    1), S(  14,    5), S(  -5,   -1), S( -19,    1), S( -30,   12), S( -54,   20), S( -27,   -3)},
 	{S(   5,   11), S(   3,    7), S(  -1,    6), S(  -3,    0), S(  -8,   -3), S(  -5,   -7), S( -10,  -14), S(  10,   -7)}
 };
+constexpr InitialParam SAFE_KNIGHT_CHECK = S(   0,    0);
+constexpr InitialParam SAFE_BISHOP_CHECK = S(   0,    0);
+constexpr InitialParam SAFE_ROOK_CHECK = S(   0,    0);
+constexpr InitialParam SAFE_QUEEN_CHECK = S(   0,    0);
 
 constexpr InitialParam BISHOP_PAIR = S(  20,   60);
 constexpr InitialParam ROOK_OPEN[2] = {S(  26,   10), S(  15,    7)};
-
 
 template<typename T>
 void addEvalParam(EvalParams& params, const T& t)
@@ -425,6 +450,10 @@ EvalParams EvalFn::getInitialParams()
 
     addEvalParamArray2D(params, PAWN_STORM);
     addEvalParamArray2D(params, PAWN_SHIELD);
+    addEvalParam(params, SAFE_KNIGHT_CHECK);
+    addEvalParam(params, SAFE_BISHOP_CHECK);
+    addEvalParam(params, SAFE_ROOK_CHECK);
+    addEvalParam(params, SAFE_QUEEN_CHECK);
 
     addEvalParam(params, BISHOP_PAIR);
     addEvalParamArray(params, ROOK_OPEN);
@@ -465,7 +494,7 @@ void printSingle(PrintState& state)
 template<int ALIGN_SIZE>
 void printPSQTs(PrintState& state)
 {
-    state.ss << "constexpr PackedScore PSQT[6][64] = {\n";
+    state.ss << "constexpr InitialParam PSQT[6][64] = {\n";
     for (int pce = 0; pce < 6; pce++)
     {
         state.ss << "\t{\n";
@@ -486,7 +515,7 @@ void printPSQTs(PrintState& state)
 
 void printMaterial(PrintState& state)
 {
-    state.ss << "constexpr PackedScore MATERIAL[6] = {";
+    state.ss << "constexpr InitialParam MATERIAL[6] = {";
     for (int j = 0; j < 5; j++)
     {
         printSingle<4>(state);
@@ -526,43 +555,59 @@ void printArray2D(PrintState& state, int outerLen, int innerLen)
 template<int ALIGN_SIZE>
 void printRestParams(PrintState& state)
 {
-    state.ss << "constexpr PackedScore MOBILITY[4][28] = ";
+    state.ss << "constexpr InitialParam MOBILITY[4][28] = ";
     printArray2D<ALIGN_SIZE>(state, 4, 28);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREATS[6][6] = ";
+    state.ss << "constexpr InitialParam THREATS[6][6] = ";
     printArray2D<ALIGN_SIZE>(state, 6, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PASSED_PAWN[8] = ";
+    state.ss << "constexpr InitialParam PASSED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore ISOLATED_PAWN[8] = ";
+    state.ss << "constexpr InitialParam ISOLATED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_PHALANX[8] = ";
+    state.ss << "constexpr InitialParam PAWN_PHALANX[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore DEFENDED_PAWN[8] = ";
+    state.ss << "constexpr InitialParam DEFENDED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_STORM[3][8] = ";
+    state.ss << "constexpr InitialParam PAWN_STORM[3][8] = ";
     printArray2D<ALIGN_SIZE>(state, 3, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_SHIELD[3][8] = ";
+    state.ss << "constexpr InitialParam PAWN_SHIELD[3][8] = ";
     printArray2D<ALIGN_SIZE>(state, 3, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore BISHOP_PAIR = ";
+    state.ss << "constexpr InitialParam SAFE_KNIGHT_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore ROOK_OPEN[2] = ";
+    state.ss << "constexpr InitialParam SAFE_BISHOP_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam SAFE_ROOK_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam SAFE_QUEEN_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam BISHOP_PAIR = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam ROOK_OPEN[2] = ";
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 }
