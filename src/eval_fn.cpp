@@ -157,7 +157,7 @@ void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 }
 
 template<Color us>
-PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uint32_t theirKing, Trace& trace)
+void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uint32_t theirKing, Trace& trace)
 {
     uint32_t kingFile = fileOf(theirKing);
     {
@@ -168,7 +168,7 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
         int rankDist = filePawns ?
             std::abs(rankOf(us == Color::WHITE ? filePawns.msb() : filePawns.lsb()) - rankOf(theirKing)) :
             7;
-        TRACE_INC(trace.pawnStorm[idx][rankDist]);
+        TRACE_INC(pawnStorm[idx][rankDist]);
     }
     {
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
@@ -177,7 +177,7 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
         int rankDist = filePawns ?
             std::abs(rankOf(us == Color::WHITE ? filePawns.msb() : filePawns.lsb()) - rankOf(theirKing)) :
             7;
-        TRACE_INC(trace.pawnShield[idx][rankDist]);
+        TRACE_INC(pawnShield[idx][rankDist]);
     }
 }
 
