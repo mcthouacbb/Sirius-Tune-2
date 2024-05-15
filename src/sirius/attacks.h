@@ -90,6 +90,25 @@ inline Bitboard pawnPushes(Bitboard pawns)
 }
 
 template<Color c>
+inline Bitboard fillUp(Bitboard bb)
+{
+    if constexpr (c == Color::WHITE)
+    {
+        bb |= bb << 8;
+        bb |= bb << 16;
+        bb |= bb << 32;
+        return bb;
+    }
+    else
+    {
+        bb |= bb >> 8;
+        bb |= bb >> 16;
+        bb |= bb >> 32;
+        return bb;
+    }
+}
+
+template<Color c>
 inline constexpr int pawnPushOffset()
 {
     return c == Color::WHITE ? 8 : -8;
@@ -193,11 +212,10 @@ inline Bitboard pieceAttacks(uint32_t square, Bitboard blockers)
         case PieceType::ROOK: return rookAttacks(square, blockers);
         case PieceType::QUEEN: return queenAttacks(square, blockers);
         case PieceType::KING: return kingAttacks(square);
-        // unreachable
+            // unreachable
         default: return 0;
     }
 }
 
 
 }
-
