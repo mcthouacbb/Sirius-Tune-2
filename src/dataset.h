@@ -4,11 +4,18 @@
 #include <span>
 #include <vector>
 
+enum class CoeffType : uint8_t
+{
+    LINEAR,
+    SAFETY
+};
+
 struct Coefficient
 {
     int16_t index;
     int16_t white;
     int16_t black;
+    CoeffType type;
 };
 
 struct Position

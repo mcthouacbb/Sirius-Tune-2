@@ -18,25 +18,31 @@ public:
     static void printEvalParamsExtracted(const EvalParams& params, std::ostream& os);
 private:
     template<typename T>
-    void addCoefficient(const T& trace)
+    void addCoefficient(const T& trace, CoeffType type)
     {
-        if (trace[0] - trace[1] != 0)
-            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx), static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
+        if ((trace[0] != 0 || trace[1] != 0) &&
+            (type != CoeffType::LINEAR || trace[0] - trace[1] != 0))
+            m_Coefficients.push_back({
+                static_cast<int16_t>(m_TraceIdx),
+                static_cast<int16_t>(trace[0]),
+                static_cast<int16_t>(trace[1]),
+                type
+            });
         m_TraceIdx++;
     }
 
     template<typename T>
-    void addCoefficientArray(const T& trace)
+    void addCoefficientArray(const T& trace, CoeffType type)
     {
         for (auto traceElem : trace)
-            addCoefficient(traceElem);
+            addCoefficient(traceElem, type);
     }
 
     template<typename T>
-    void addCoefficientArray2D(const T& trace)
+    void addCoefficientArray2D(const T& trace, CoeffType type)
     {
         for (auto& traceElem : trace)
-            addCoefficientArray(traceElem);
+            addCoefficientArray(traceElem, type);
     }
 
     std::vector<Coefficient>& m_Coefficients;

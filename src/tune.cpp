@@ -10,17 +10,68 @@ double sigmoid(double x, double k)
     return 1.0 / (1 + exp(-x * k));
 }
 
+struct EvalResult
+{
+    std::array<double, 2> mgKs;
+    std::array<double, 2> egKs;
+};
+
 double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params)
 {
     double mg = 0, eg = 0;
+    std::array<double, 2> mgKs = {}, egKs = {};
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
         const EvalParam& param = params[coeff.index];
-        mg += param.mg * (coeff.white - coeff.black);
-        eg += param.eg * (coeff.white - coeff.black);
+        if (coeff.type == CoeffType::LINEAR) {
+            mg += param.mg * (coeff.white - coeff.black);
+            eg += param.eg * (coeff.white - coeff.black);
+        } else if (coeff.type == CoeffType::SAFETY) {
+            mgKs[0] += param.mg * coeff.white;
+            mgKs[1] += param.mg * coeff.black;
+            egKs[0] += param.eg * coeff.white;
+            egKs[1] += param.eg * coeff.black;
+        }
     }
 
+    for (int i = 0; i < 2; i++) {
+        mgKs[i] = mgKs[i] * std::max(mgKs[i], 0.0) / SAFETY_SCALE_MG;
+        egKs[i] = std::max(egKs[i], 0.0) / SAFETY_SCALE_EG;
+    }
+    mg += mgKs[0] - mgKs[1];
+    eg += egKs[0] - egKs[1];
+    return (mg * pos.phase + eg * (1.0 - pos.phase));
+}
+
+double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params, EvalResult& result)
+{
+    double mg = 0, eg = 0;
+    std::array<double, 2> mgKs = {}, egKs = {};
+    for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
+    {
+        const auto& coeff = coefficients[i];
+        const EvalParam& param = params[coeff.index];
+        if (coeff.type == CoeffType::LINEAR) {
+            mg += param.mg * (coeff.white - coeff.black);
+            eg += param.eg * (coeff.white - coeff.black);
+        } else if (coeff.type == CoeffType::SAFETY) {
+            mgKs[0] += param.mg * coeff.white;
+            mgKs[1] += param.mg * coeff.black;
+            egKs[0] += param.eg * coeff.white;
+            egKs[1] += param.eg * coeff.black;
+        }
+    }
+
+    result.mgKs = mgKs;
+    result.egKs = egKs;
+    
+    for (int i = 0; i < 2; i++) {
+        mgKs[i] = mgKs[i] * std::max(mgKs[i], 0.0) / SAFETY_SCALE_MG;
+        egKs[i] = std::max(egKs[i], 0.0) / SAFETY_SCALE_EG;
+    }
+    mg += mgKs[0] - mgKs[1];
+    eg += egKs[0] - egKs[1];
     return (mg * pos.phase + eg * (1.0 - pos.phase));
 }
 
@@ -85,16 +136,35 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
 
 void updateGradient(const Position& pos, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
 {
-    double eval = evaluate(pos, coefficients, params);
+    EvalResult result;
+    double eval = evaluate(pos, coefficients, params, result);
     double wdl = sigmoid(eval, kValue);
     double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
     double egBase = gradientBase - mgBase;
+    double wSafetyMg = std::max(result.mgKs[0], 0.0);
+    double bSafetyMg = std::max(result.mgKs[1], 0.0);
+    double wSafetyEg = result.egKs[0] > 0 ? 1 : 0;
+    double bSafetyEg = result.egKs[1] > 0 ? 1 : 0;
+
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
-        gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
-        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
+        if (coeff.type == CoeffType::LINEAR)
+        {
+            gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
+            gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
+        }
+        else
+        {
+            double mgC = mgBase * 2.0 / SAFETY_SCALE_MG * (wSafetyMg * coeff.white - bSafetyMg * coeff.black);
+            double egC = egBase / SAFETY_SCALE_EG *  (wSafetyEg * coeff.white - bSafetyEg * coeff.black);
+            std::cout << mgC << ' ' << egC << std::endl;
+            gradients[coeff.index].mg += mgC;
+            gradients[coeff.index].eg += egC;
+            // gradients[coeff.index].mg += mgBase * 2.0 / SAFETY_SCALE_MG * (wSafetyMg * coeff.white - bSafetyMg * coeff.black);
+            // gradients[coeff.index].eg += egBase / SAFETY_SCALE_EG *  (wSafetyEg * coeff.white - bSafetyEg * coeff.black);
+        }
     }
 }
 

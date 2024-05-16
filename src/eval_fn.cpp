@@ -38,7 +38,7 @@ struct PieceTypeArray : public std::array<T, 6>
 
 using TraceElem = ColorArray<int>;
 
-struct Trace
+struct LinearTrace
 {
     TraceElem psqt[6][64];
 
@@ -51,16 +51,25 @@ struct Trace
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
 
+    TraceElem knightOutpost;
+    TraceElem bishopPair;
+    TraceElem openRook[2];
+};
+
+struct SafetyTrace
+{
     TraceElem pawnStorm[3][8];
     TraceElem pawnShield[3][8];
     TraceElem safeKnightCheck;
     TraceElem safeBishopCheck;
     TraceElem safeRookCheck;
     TraceElem safeQueenCheck;
+};
 
-    TraceElem knightOutpost;
-    TraceElem bishopPair;
-    TraceElem openRook[2];
+struct Trace
+{
+    LinearTrace linear;
+    SafetyTrace safety;
 };
 
 struct EvalData
@@ -75,7 +84,7 @@ struct EvalData
 #define TRACE_ADD(traceElem, amount) trace.traceElem[us] += amount
 
 template<Color us, PieceType piece>
-void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
+void evaluatePieces(const Board& board, EvalData& evalData, LinearTrace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
@@ -126,7 +135,7 @@ void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
 
 template<Color us>
-void evaluatePawns(const Board& board, Trace& trace)
+void evaluatePawns(const Board& board, LinearTrace& trace)
 {
     Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
 
@@ -151,7 +160,7 @@ void evaluatePawns(const Board& board, Trace& trace)
 
 }
 
-void evaluatePawns(const Board& board, Trace& trace)
+void evaluatePawns(const Board& board, LinearTrace& trace)
 {
     evaluatePawns<Color::WHITE>(board, trace);
     evaluatePawns<Color::BLACK>(board, trace);
@@ -159,7 +168,7 @@ void evaluatePawns(const Board& board, Trace& trace)
 
 // I'll figure out how to add the other pieces here later
 template<Color us>
-void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
+void evaluateThreats(const Board& board, const EvalData& evalData, LinearTrace& trace)
 {
     constexpr Color them = ~us;
     Bitboard threats = evalData.attackedBy[us][PieceType::PAWN] & board.getColor(them);
@@ -168,7 +177,7 @@ void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 }
 
 template<Color us>
-void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uint32_t theirKing, Trace& trace)
+void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uint32_t theirKing, SafetyTrace& trace)
 {
     uint32_t kingFile = fileOf(theirKing);
     {
@@ -193,7 +202,7 @@ void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uin
 }
 
 template<Color us>
-void evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
+void evaluateKings(const Board& board, const EvalData& evalData, SafetyTrace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
@@ -236,7 +245,7 @@ void initEvalData(const Board& board, EvalData& evalData)
     evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = blackPawnAttacks;
 }
 
-void evaluatePsqt(const Board& board, Trace& trace)
+void evaluatePsqt(const Board& board, LinearTrace& trace)
 {
     for (Color c : {Color::WHITE, Color::BLACK})
         for (PieceType pt : {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN, PieceType::KING})
@@ -259,23 +268,23 @@ Trace getTrace(const Board& board)
 
     Trace trace = {};
 
-    evaluatePsqt(board, trace);
+    evaluatePsqt(board, trace.linear);
 
-    evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace);
-    evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
-    evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace);
-    evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
-    evaluatePieces<Color::WHITE, PieceType::ROOK>(board, evalData, trace);
-    evaluatePieces<Color::BLACK, PieceType::ROOK>(board, evalData, trace);
-    evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace);
-    evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace);
+    evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace.linear);
+    evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace.linear);
+    evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace.linear);
+    evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace.linear);
+    evaluatePieces<Color::WHITE, PieceType::ROOK>(board, evalData, trace.linear);
+    evaluatePieces<Color::BLACK, PieceType::ROOK>(board, evalData, trace.linear);
+    evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace.linear);
+    evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace.linear);
 
-    evaluateKings<Color::WHITE>(board, evalData, trace);
-    evaluateKings<Color::BLACK>(board, evalData, trace);
+    evaluateKings<Color::WHITE>(board, evalData, trace.safety);
+    evaluateKings<Color::BLACK>(board, evalData, trace.safety);
 
-    evaluatePawns(board, trace);
-    evaluateThreats<Color::WHITE>(board, evalData, trace);
-    evaluateThreats<Color::BLACK>(board, evalData, trace);
+    evaluatePawns(board, trace.linear);
+    evaluateThreats<Color::WHITE>(board, evalData, trace.linear);
+    evaluateThreats<Color::BLACK>(board, evalData, trace.linear);
 
     return trace;
 }
@@ -296,27 +305,31 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
     reset();
     size_t pos = m_Coefficients.size();
     Trace trace = getTrace(board);
-    addCoefficientArray2D(trace.psqt);
+    const auto& linear = trace.linear;
+    const auto& safety = trace.safety;
+    addCoefficientArray2D(linear.psqt, CoeffType::LINEAR);
 
-    addCoefficientArray2D(trace.mobility);
+    addCoefficientArray2D(linear.mobility, CoeffType::LINEAR);
 
-    addCoefficientArray2D(trace.threats);
+    addCoefficientArray2D(linear.threats, CoeffType::LINEAR);
 
-    addCoefficientArray(trace.passedPawn);
-    addCoefficientArray(trace.isolatedPawn);
-    addCoefficientArray(trace.pawnPhalanx);
-    addCoefficientArray(trace.defendedPawn);
+    addCoefficientArray(linear.passedPawn, CoeffType::LINEAR);
+    addCoefficientArray(linear.isolatedPawn, CoeffType::LINEAR);
+    addCoefficientArray(linear.pawnPhalanx, CoeffType::LINEAR);
+    addCoefficientArray(linear.defendedPawn, CoeffType::LINEAR);
 
-    addCoefficientArray2D(trace.pawnStorm);
-    addCoefficientArray2D(trace.pawnShield);
-    addCoefficient(trace.safeKnightCheck);
-    addCoefficient(trace.safeBishopCheck);
-    addCoefficient(trace.safeRookCheck);
-    addCoefficient(trace.safeQueenCheck);
+    addCoefficient(linear.knightOutpost, CoeffType::LINEAR);
+    addCoefficient(linear.bishopPair, CoeffType::LINEAR);
+    addCoefficientArray(linear.openRook, CoeffType::LINEAR);
 
-    addCoefficient(trace.knightOutpost);
-    addCoefficient(trace.bishopPair);
-    addCoefficientArray(trace.openRook);
+    addCoefficientArray2D(safety.pawnStorm, CoeffType::SAFETY);
+    addCoefficientArray2D(safety.pawnShield, CoeffType::SAFETY);
+    addCoefficient(safety.safeKnightCheck, CoeffType::SAFETY);
+    addCoefficient(safety.safeBishopCheck, CoeffType::SAFETY);
+    addCoefficient(safety.safeRookCheck, CoeffType::SAFETY);
+    addCoefficient(safety.safeQueenCheck, CoeffType::SAFETY);
+    // safety offset
+    addCoefficient(TraceElem{1, 1}, CoeffType::SAFETY);
     return {pos, m_Coefficients.size()};
 }
 
@@ -410,24 +423,25 @@ constexpr InitialParam ISOLATED_PAWN[8] = {S(  -0,    4), S(  -3,  -11), S( -11,
 constexpr InitialParam PAWN_PHALANX[8] = {S(   0,    0), S(   4,   -2), S(  13,    6), S(  22,   17), S(  49,   57), S( 129,  186), S(-215,  443), S(   0,    0)};
 constexpr InitialParam DEFENDED_PAWN[8] = {S(   0,    0), S(   0,    0), S(  17,   11), S(  12,    8), S(  13,   15), S(  26,   36), S( 156,   28), S(   0,    0)};
 
+constexpr InitialParam KNIGHT_OUTPOST = S(  31,   23);
+constexpr InitialParam BISHOP_PAIR = S(  20,   59);
+constexpr InitialParam ROOK_OPEN[2] = {S(  27,    9), S(  15,    8)};
+
 constexpr InitialParam PAWN_STORM[3][8] = {
-	{S(  23,  -37), S(  21,  -20), S(  19,   -5), S(  10,    1), S(   5,    3), S(   1,    7), S(   2,    5), S(  11,  -12)},
-	{S(   0,    0), S( -49,  -33), S(  29,   -0), S(   1,    5), S(  -6,   11), S(  -7,   15), S(  -9,   17), S(   7,   -4)},
-	{S(  -3,   -1), S(  -2,    6), S(   6,    9), S(   3,   10), S(   5,    9), S(   5,    9), S(   3,    8), S(  -9,   -3)}
+    {S(  23,  -37), S(  21,  -20), S(  19,   -5), S(  10,    1), S(   5,    3), S(   1,    7), S(   2,    5), S(  11,  -12)},
+    {S(   0,    0), S( -49,  -33), S(  29,   -0), S(   1,    5), S(  -6,   11), S(  -7,   15), S(  -9,   17), S(   7,   -4)},
+    {S(  -3,   -1), S(  -2,    6), S(   6,    9), S(   3,   10), S(   5,    9), S(   5,    9), S(   3,    8), S(  -9,   -3)}
 };
 constexpr InitialParam PAWN_SHIELD[3][8] = {
-	{S(  -0,  -16), S(  -9,  -10), S(  -7,  -13), S(  -1,  -10), S(  11,  -10), S(  13,  -18), S(  20,  -19), S(  12,   -2)},
-	{S(   0,    0), S( -18,   -1), S( -12,   -6), S(   5,   -1), S(  18,   -3), S(  28,  -15), S(  51,  -25), S(  20,    3)},
-	{S(  -2,  -11), S(  -2,   -8), S(  -0,   -7), S(   1,   -1), S(   6,    2), S(   4,    6), S(  14,   11), S(  -7,    7)}
+    {S(  -0,  -16), S(  -9,  -10), S(  -7,  -13), S(  -1,  -10), S(  11,  -10), S(  13,  -18), S(  20,  -19), S(  12,   -2)},
+    {S(   0,    0), S( -18,   -1), S( -12,   -6), S(   5,   -1), S(  18,   -3), S(  28,  -15), S(  51,  -25), S(  20,    3)},
+    {S(  -2,  -11), S(  -2,   -8), S(  -0,   -7), S(   1,   -1), S(   6,    2), S(   4,    6), S(  14,   11), S(  -7,    7)}
 };
 constexpr InitialParam SAFE_KNIGHT_CHECK = S(  81,   -6);
 constexpr InitialParam SAFE_BISHOP_CHECK = S(  19,   -7);
 constexpr InitialParam SAFE_ROOK_CHECK = S(  58,   -6);
 constexpr InitialParam SAFE_QUEEN_CHECK = S(  35,   12);
-
-constexpr InitialParam KNIGHT_OUTPOST = S(  31,   23);
-constexpr InitialParam BISHOP_PAIR = S(  20,   59);
-constexpr InitialParam ROOK_OPEN[2] = {S(  27,    9), S(  15,    8)};
+constexpr InitialParam SAFETY_OFFSET = S(   0,    0);
 
 template<typename T>
 void addEvalParam(EvalParams& params, const T& t)
@@ -468,16 +482,17 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, PAWN_PHALANX);
     addEvalParamArray(params, DEFENDED_PAWN);
 
+    addEvalParam(params, KNIGHT_OUTPOST);
+    addEvalParam(params, BISHOP_PAIR);
+    addEvalParamArray(params, ROOK_OPEN);
+
     addEvalParamArray2D(params, PAWN_STORM);
     addEvalParamArray2D(params, PAWN_SHIELD);
     addEvalParam(params, SAFE_KNIGHT_CHECK);
     addEvalParam(params, SAFE_BISHOP_CHECK);
     addEvalParam(params, SAFE_ROOK_CHECK);
     addEvalParam(params, SAFE_QUEEN_CHECK);
-
-    addEvalParam(params, KNIGHT_OUTPOST);
-    addEvalParam(params, BISHOP_PAIR);
-    addEvalParamArray(params, ROOK_OPEN);
+    addEvalParam(params, SAFETY_OFFSET);
     return params;
 }
 
@@ -492,6 +507,9 @@ EvalParams EvalFn::getMaterialParams()
             params[i * 64 + j].mg += MATERIAL[i][0];
             params[i * 64 + j].eg += MATERIAL[i][1];
         }
+    // prevent king safety gradients from being zero
+    params.back().mg = 20;
+    params.back().eg = 20;
     return params;
 }
 
@@ -600,6 +618,18 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
+    state.ss << "constexpr InitialParam KNIGHT_OUTPOST = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam BISHOP_PAIR = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr InitialParam ROOK_OPEN[2] = ";
+    printArray<ALIGN_SIZE>(state, 2);
+    state.ss << ";\n";
+
     state.ss << "constexpr InitialParam PAWN_STORM[3][8] = ";
     printArray2D<ALIGN_SIZE>(state, 3, 8);
     state.ss << ";\n";
@@ -624,16 +654,8 @@ void printRestParams(PrintState& state)
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr InitialParam KNIGHT_OUTPOST = ";
+    state.ss << "constexpr InitialParam SAFETY_OFFSET = ";
     printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr InitialParam BISHOP_PAIR = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr InitialParam ROOK_OPEN[2] = ";
-    printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 }
 
