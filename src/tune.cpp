@@ -157,11 +157,6 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
         }
         else
         {
-            // double mgC = mgBase * 2.0 / SAFETY_SCALE_MG * (wSafetyMg * coeff.white - bSafetyMg * coeff.black);
-            // double egC = egBase / SAFETY_SCALE_EG *  (wSafetyEg * coeff.white - bSafetyEg * coeff.black);
-            // std::cout << mgC << ' ' << egC << std::endl;
-            // gradients[coeff.index].mg += mgC;
-            // gradients[coeff.index].eg += egC;
             gradients[coeff.index].mg += mgBase * 2.0 / SAFETY_SCALE_MG * (wSafetyMg * coeff.white - bSafetyMg * coeff.black);
             gradients[coeff.index].eg += egBase / SAFETY_SCALE_EG *  (wSafetyEg * coeff.white - bSafetyEg * coeff.black);
         }
