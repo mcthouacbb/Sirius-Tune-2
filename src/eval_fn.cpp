@@ -67,6 +67,7 @@ struct EvalData
 {
     ColorArray<Bitboard> mobilityArea;
     ColorArray<Bitboard> attacked;
+    ColorArray<Bitboard> attackedBy2;
     ColorArray<PieceTypeArray<Bitboard>> attackedBy;
     ColorArray<Bitboard> pawnAttackSpans;
 };
@@ -93,6 +94,7 @@ void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         uint32_t sq = pieces.poplsb();
         Bitboard attacks = attacks::pieceAttacks<piece>(sq, board.getAllPieces());
         evalData.attackedBy[us][piece] |= attacks;
+        evalData.attackedBy2[us] |= evalData.attacked[us] & attacks;
         evalData.attacked[us] |= attacks;
 
         TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)][(attacks & evalData.mobilityArea[us]).popcount()]);
@@ -212,7 +214,7 @@ void evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
     Bitboard rookChecks = evalData.attackedBy[us][PieceType::ROOK] & rookCheckSquares;
     Bitboard queenChecks = evalData.attackedBy[us][PieceType::QUEEN] & (bishopCheckSquares | rookCheckSquares);
 
-    Bitboard safe = ~evalData.attacked[them];
+    Bitboard safe = ~evalData.attacked[them] | (~evalData.attackedBy2[them] & evalData.attackedBy[them][PieceType::KING]);
 
     TRACE_ADD(safeKnightCheck, (knightChecks & safe).popcount());
     TRACE_ADD(safeBishopCheck, (bishopChecks & safe).popcount());
@@ -226,14 +228,24 @@ void initEvalData(const Board& board, EvalData& evalData)
     Bitboard blackPawns = board.getPieces(Color::BLACK, PieceType::PAWN);
     Bitboard whitePawnAttacks = attacks::pawnAttacks<Color::WHITE>(whitePawns);
     Bitboard blackPawnAttacks = attacks::pawnAttacks<Color::BLACK>(blackPawns);
+    uint32_t whiteKing = board.getPieces(Color::WHITE, PieceType::KING).lsb();
+    uint32_t blackKing = board.getPieces(Color::BLACK, PieceType::KING).lsb();
 
     evalData.mobilityArea[Color::WHITE] = ~blackPawnAttacks;
     evalData.pawnAttackSpans[Color::WHITE] = attacks::fillUp<Color::WHITE>(whitePawnAttacks);
     evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = whitePawnAttacks;
 
+    evalData.attackedBy[Color::WHITE][PieceType::KING] = attacks::kingAttacks(whiteKing);
+    evalData.attackedBy2[Color::WHITE] = evalData.attacked[Color::WHITE] & evalData.attackedBy[Color::WHITE][PieceType::KING];
+    evalData.attacked[Color::WHITE] |= evalData.attackedBy[Color::WHITE][PieceType::KING];
+
     evalData.mobilityArea[Color::BLACK] = ~whitePawnAttacks;
     evalData.pawnAttackSpans[Color::BLACK] = attacks::fillUp<Color::BLACK>(blackPawnAttacks);
     evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = blackPawnAttacks;
+
+    evalData.attackedBy[Color::BLACK][PieceType::KING] = attacks::kingAttacks(blackKing);
+    evalData.attackedBy2[Color::BLACK] = evalData.attacked[Color::BLACK] & evalData.attackedBy[Color::BLACK][PieceType::KING];
+    evalData.attacked[Color::BLACK] |= evalData.attackedBy[Color::BLACK][PieceType::KING];
 }
 
 void evaluatePsqt(const Board& board, Trace& trace)
