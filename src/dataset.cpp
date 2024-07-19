@@ -39,11 +39,11 @@ Dataset loadDataset(std::ifstream& file)
         }
 
         // will overflow to 0
-        size_t fourthSpace = SIZE_MAX;
-        for (int i = 0; i < 4; i++)
+        size_t sixthSpace = SIZE_MAX;
+        for (int i = 0; i < 6; i++)
         {
-            fourthSpace = line.find(' ', fourthSpace + 1);
-            if (fourthSpace == std::string::npos)
+            sixthSpace = line.find(' ', sixthSpace + 1);
+            if (sixthSpace == std::string::npos)
             {
                 std::cout << "Error: Invalid data: " << line << std::endl;
                 exit(1);
@@ -51,7 +51,7 @@ Dataset loadDataset(std::ifstream& file)
         }
 
         Board board;
-        board.setToFen(std::string_view(line.begin(), line.begin() + fourthSpace));
+        board.setToFen(std::string_view(line.begin(), line.begin() + sixthSpace));
 
         auto [coeffBegin, coeffEnd] = eval.getCoefficients(board);
 
