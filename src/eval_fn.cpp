@@ -725,6 +725,8 @@ void printRestParams(PrintState& state)
     printArray2D<ALIGN_SIZE>(state, 4, 28);
     state.ss << ";\n";
 
+    state.ss << '\n';
+
     state.ss << "constexpr InitialParam THREAT_BY_PAWN[6] = ";
     printArray<ALIGN_SIZE>(state, 6);
     state.ss << ";\n";
@@ -744,6 +746,8 @@ void printRestParams(PrintState& state)
     state.ss << "constexpr InitialParam THREAT_BY_QUEEN[2][6] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 6);
     state.ss << ";\n";
+
+    state.ss << '\n';
 
     state.ss << "constexpr InitialParam PASSED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
@@ -768,6 +772,8 @@ void printRestParams(PrintState& state)
     state.ss << "constexpr InitialParam THEIR_PASSER_PROXIMITY[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
+
+    state.ss << '\n';
 
     state.ss << "constexpr InitialParam PAWN_STORM[3][8] = ";
     printArray2D<ALIGN_SIZE>(state, 3, 8);
@@ -801,6 +807,8 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 14);
     state.ss << ";\n";
 
+    state.ss << '\n';
+
     state.ss << "constexpr InitialParam KNIGHT_OUTPOST = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
@@ -813,6 +821,8 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
+    state.ss << '\n';
+
     state.ss << "constexpr InitialParam TEMPO = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
@@ -822,6 +832,7 @@ void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
 {
     PrintState state{params, 0};
     printPSQTs<0>(state);
+    state.ss << '\n';
     printRestParams<0>(state);
     os << state.ss.str() << std::endl;
 }
@@ -868,7 +879,9 @@ void EvalFn::printEvalParamsExtracted(const EvalParams& params, std::ostream& os
 {
     PrintState state{extractMaterial(params), 0};
     printMaterial(state);
+    state.ss << '\n';
     printPSQTs<4>(state);
+    state.ss << '\n';
     printRestParams<4>(state);
     os << state.ss.str() << std::endl;
 }
