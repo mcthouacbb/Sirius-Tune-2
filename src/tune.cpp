@@ -26,10 +26,10 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
 
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
 {
-    constexpr double SEARCH_MAX = 10;
-    constexpr int ITERATIONS = 10;
+    constexpr double SEARCH_MAX = 1;
+    constexpr int ITERATIONS = 7;
 
-    double start = 0, end = SEARCH_MAX, step = 0.25;
+    double start = 0, end = SEARCH_MAX, step = 0.025;
     double bestK = 0, bestError = 1e10;
 
     for (int i = 0; i < ITERATIONS; i++)
