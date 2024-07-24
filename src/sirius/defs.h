@@ -29,7 +29,8 @@ constexpr Color operator~(const Color& c)
     return static_cast<Color>(static_cast<int>(c) ^ 1);
 }
 
-enum class Piece : uint8_t {
+enum class Piece : uint8_t
+{
     NONE = static_cast<int>(PieceType::NONE)
 };
 
@@ -168,6 +169,8 @@ public:
     friend constexpr PackedScore operator+(const PackedScore& a, const PackedScore& b);
     friend constexpr PackedScore operator-(const PackedScore& a, const PackedScore& b);
     friend constexpr PackedScore operator-(const PackedScore& p);
+    friend constexpr PackedScore operator*(int a, const PackedScore& b);
+    friend constexpr PackedScore operator*(const PackedScore& a, int b);
 private:
     constexpr PackedScore(int value)
         : m_Value(value)
@@ -177,47 +180,57 @@ private:
     int32_t m_Value;
 };
 
-inline constexpr PackedScore::PackedScore(int mg, int eg)
+constexpr PackedScore::PackedScore(int mg, int eg)
     : m_Value((static_cast<int32_t>(static_cast<uint32_t>(eg) << 16) + mg))
 {
 
 }
 
-inline constexpr PackedScore& PackedScore::operator+=(const PackedScore& other)
+constexpr PackedScore& PackedScore::operator+=(const PackedScore& other)
 {
     m_Value += other.m_Value;
     return *this;
 }
 
-inline constexpr PackedScore& PackedScore::operator-=(const PackedScore& other)
+constexpr PackedScore& PackedScore::operator-=(const PackedScore& other)
 {
     m_Value -= other.m_Value;
     return *this;
 }
 
-inline constexpr int PackedScore::mg() const
+constexpr int PackedScore::mg() const
 {
     return static_cast<int16_t>(m_Value);
 }
 
-inline constexpr int PackedScore::eg() const
+constexpr int PackedScore::eg() const
 {
     return static_cast<int16_t>(static_cast<uint32_t>(m_Value + 0x8000) >> 16);
 }
 
-inline constexpr PackedScore operator+(const PackedScore& a, const PackedScore& b)
+constexpr PackedScore operator+(const PackedScore& a, const PackedScore& b)
 {
     return PackedScore(a.m_Value + b.m_Value);
 }
 
-inline constexpr PackedScore operator-(const PackedScore& a, const PackedScore& b)
+constexpr PackedScore operator-(const PackedScore& a, const PackedScore& b)
 {
     return PackedScore(a.m_Value - b.m_Value);
 }
 
-inline constexpr PackedScore operator-(const PackedScore& p)
+constexpr PackedScore operator-(const PackedScore& p)
 {
     return PackedScore(-p.m_Value);
+}
+
+constexpr PackedScore operator*(int a, const PackedScore& b)
+{
+    return PackedScore(a * b.m_Value);
+}
+
+constexpr PackedScore operator*(const PackedScore& a, int b)
+{
+    return PackedScore(a.m_Value * b);
 }
 
 inline int fileOf(int square)

@@ -17,7 +17,6 @@ set(SRCS
     "src/sirius/board.cpp"
     "src/sirius/board.h"
     "src/sirius/defs.h"
-    "src/sirius/zobrist.cpp"
     "src/sirius/zobrist.h"
 
     "src/dataset.cpp"

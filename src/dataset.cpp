@@ -60,10 +60,10 @@ Dataset loadDataset(std::ifstream& file)
         pos.coeffEnd = coeffEnd;
         pos.wdl = wdlResult;
         pos.phase =
-            4 * board.getPieces(PieceType::QUEEN).popcount() +
-            2 * board.getPieces(PieceType::ROOK).popcount() +
-            board.getPieces(PieceType::BISHOP).popcount() +
-            board.getPieces(PieceType::KNIGHT).popcount();
+            4 * board.pieces(PieceType::QUEEN).popcount() +
+            2 * board.pieces(PieceType::ROOK).popcount() +
+            board.pieces(PieceType::BISHOP).popcount() +
+            board.pieces(PieceType::KNIGHT).popcount();
         pos.phase /= 24.0;
 
         positions.push_back(pos);

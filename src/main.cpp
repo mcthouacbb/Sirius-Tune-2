@@ -9,7 +9,6 @@
 int main()
 {
     attacks::init();
-    zobrist::init();
 
     std::string datasetFilepath;
     std::string outFilepath;

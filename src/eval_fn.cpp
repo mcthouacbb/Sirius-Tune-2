@@ -94,30 +94,30 @@ template<Color us, PieceType piece>
 void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.getPieces(them, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
-    Bitboard pieces = board.getPieces(us, piece);
+    Bitboard pieces = board.pieces(us, piece);
     if constexpr (piece == PieceType::BISHOP)
         if (pieces.multiple())
             TRACE_INC(bishopPair);
 
-    Bitboard occupancy = board.getAllPieces();
+    Bitboard occupancy = board.allPieces();
     if constexpr (piece == PieceType::BISHOP)
-        occupancy ^= board.getPieces(us, PieceType::BISHOP) | board.getPieces(us, PieceType::QUEEN);
+        occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::QUEEN);
     else if constexpr (piece == PieceType::ROOK)
-        occupancy ^= board.getPieces(us, PieceType::ROOK) | board.getPieces(us, PieceType::QUEEN);
+        occupancy ^= board.pieces(us, PieceType::ROOK) | board.pieces(us, PieceType::QUEEN);
     else if constexpr (piece == PieceType::QUEEN)
-        occupancy ^= board.getPieces(us, PieceType::BISHOP) | board.getPieces(us, PieceType::ROOK);
+        occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::ROOK);
 
     Bitboard outpostSquares = RANK_4 | RANK_5 | (us == Color::WHITE ? RANK_6 : RANK_3);
 
-    while (pieces)
+    while (pieces.any())
     {
         uint32_t sq = pieces.poplsb();
         Bitboard attacks = attacks::pieceAttacks<piece>(sq, occupancy);
-        if (board.checkBlockers(us) & Bitboard::fromSquare(sq))
-            attacks &= attacks::inBetweenSquares(sq, board.getPieces(us, PieceType::KING).lsb());
+        if ((board.checkBlockers(us) & Bitboard::fromSquare(sq)).any())
+            attacks &= attacks::inBetweenSquares(sq, board.pieces(us, PieceType::KING).lsb());
 
         evalData.attackedBy[us][piece] |= attacks;
         evalData.attackedBy2[us] |= evalData.attacked[us] & attacks;
@@ -147,7 +147,7 @@ void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         if constexpr (piece == PieceType::KNIGHT)
         {
             Bitboard outposts = outpostSquares & ~evalData.pawnAttackSpans[them] & evalData.attackedBy[us][PieceType::PAWN];
-            if (Bitboard::fromSquare(sq) & outposts)
+            if ((Bitboard::fromSquare(sq) & outposts).any())
                 TRACE_INC(knightOutpost);
         }
     }
@@ -158,10 +158,10 @@ void evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 template<Color us>
 void evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
 {
-    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
 
     Bitboard pawns = ourPawns;
-    while (pawns)
+    while (pawns.any())
     {
         uint32_t sq = pawns.poplsb();
         if (board.isPassedPawn(sq))
@@ -174,12 +174,12 @@ void evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
     }
 
     Bitboard phalanx = ourPawns & ourPawns.west();
-    while (phalanx)
+    while (phalanx.any())
         TRACE_INC(pawnPhalanx[relativeRankOf<us>(phalanx.poplsb())]);
 
     // shift with opposite color is intentional
     Bitboard defended = ourPawns & attacks::pawnAttacks<us>(ourPawns);
-    while (defended)
+    while (defended.any())
         TRACE_INC(defendedPawn[relativeRankOf<us>(defended.poplsb())]);
 
 }
@@ -188,10 +188,10 @@ template<Color us>
 void evaluateKingPawn(const Board & board, const EvalData & evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    uint32_t ourKing = board.getPieces(us, PieceType::KING).lsb();
-    uint32_t theirKing = board.getPieces(them, PieceType::KING).lsb();
+    uint32_t ourKing = board.pieces(us, PieceType::KING).lsb();
+    uint32_t theirKing = board.pieces(them, PieceType::KING).lsb();
 
-    Bitboard passers = evalData.passedPawns & board.getColor(us);
+    Bitboard passers = evalData.passedPawns & board.pieces(us);
 
     while (passers.any())
     {
@@ -215,54 +215,54 @@ void evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 
     Bitboard defendedBB = evalData.attacked[them];
 
-    Bitboard pawnThreats = evalData.attackedBy[us][PieceType::PAWN] & board.getColor(them);
+    Bitboard pawnThreats = evalData.attackedBy[us][PieceType::PAWN] & board.pieces(them);
     while (pawnThreats.any())
     {
-        PieceType threatened = getPieceType(board.getPieceAt(pawnThreats.poplsb()));
+        PieceType threatened = getPieceType(board.pieceAt(pawnThreats.poplsb()));
         TRACE_INC(threatByPawn[static_cast<int>(threatened)]);
     }
 
-    Bitboard knightThreats = evalData.attackedBy[us][PieceType::KNIGHT] & board.getColor(them);
+    Bitboard knightThreats = evalData.attackedBy[us][PieceType::KNIGHT] & board.pieces(them);
     while (knightThreats.any())
     {
         int threat = knightThreats.poplsb();
-        PieceType threatened = getPieceType(board.getPieceAt(threat));
+        PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
         TRACE_INC(threatByKnight[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard bishopThreats = evalData.attackedBy[us][PieceType::BISHOP] & board.getColor(them);
+    Bitboard bishopThreats = evalData.attackedBy[us][PieceType::BISHOP] & board.pieces(them);
     while (bishopThreats.any())
     {
         int threat = bishopThreats.poplsb();
-        PieceType threatened = getPieceType(board.getPieceAt(threat));
+        PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
         TRACE_INC(threatByBishop[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard rookThreats = evalData.attackedBy[us][PieceType::ROOK] & board.getColor(them);
+    Bitboard rookThreats = evalData.attackedBy[us][PieceType::ROOK] & board.pieces(them);
     while (rookThreats.any())
     {
         int threat = rookThreats.poplsb();
-        PieceType threatened = getPieceType(board.getPieceAt(threat));
+        PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
         TRACE_INC(threatByRook[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard queenThreats = evalData.attackedBy[us][PieceType::QUEEN] & board.getColor(them);
+    Bitboard queenThreats = evalData.attackedBy[us][PieceType::QUEEN] & board.pieces(them);
     while (queenThreats.any())
     {
         int threat = queenThreats.poplsb();
-        PieceType threatened = getPieceType(board.getPieceAt(threat));
+        PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
         TRACE_INC(threatByQueen[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard nonPawnEnemies = board.getColor(them) & ~board.getPieces(PieceType::PAWN);
+    Bitboard nonPawnEnemies = board.pieces(them) & ~board.pieces(PieceType::PAWN);
 
     Bitboard safe = ~defendedBB | (evalData.attacked[us] & ~evalData.attackedBy[them][PieceType::PAWN]);
-    Bitboard pushes = attacks::pawnPushes<us>(board.getPieces(us, PieceType::PAWN)) & ~board.getAllPieces();
-    pushes |= attacks::pawnPushes<us>(pushes & Bitboard::nthRank<us, 2>()) & ~board.getAllPieces();
+    Bitboard pushes = attacks::pawnPushes<us>(board.pieces(us, PieceType::PAWN)) & ~board.allPieces();
+    pushes |= attacks::pawnPushes<us>(pushes & Bitboard::nthRank<us, 2>()) & ~board.allPieces();
 
     Bitboard pushThreats = attacks::pawnAttacks<us>(pushes & safe) & nonPawnEnemies;
     TRACE_ADD(pushThreat, pushThreats.popcount());
@@ -277,7 +277,7 @@ void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uin
         // 4 = e file
         int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
 
-        int rankDist = filePawns ?
+        int rankDist = filePawns.any() ?
             std::abs(rankOf(us == Color::WHITE ? filePawns.msb() : filePawns.lsb()) - rankOf(theirKing)) :
             7;
         TRACE_INC(pawnStorm[idx][rankDist]);
@@ -286,7 +286,7 @@ void evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, uin
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
         // 4 = e file
         int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
-        int rankDist = filePawns ?
+        int rankDist = filePawns.any() ?
             std::abs(rankOf(us == Color::WHITE ? filePawns.msb() : filePawns.lsb()) - rankOf(theirKing)) :
             7;
         TRACE_INC(pawnShield[idx][rankDist]);
@@ -297,16 +297,16 @@ template<Color us>
 void evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.getPieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.getPieces(them, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
-    uint32_t theirKing = board.getPieces(them, PieceType::KING).lsb();
+    uint32_t theirKing = board.pieces(them, PieceType::KING).lsb();
 
     for (uint32_t file = 0; file < 8; file++)
         evalKingPawnFile<us>(file, ourPawns, theirPawns, theirKing, trace);
 
-    Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.getAllPieces());
-    Bitboard bishopCheckSquares = attacks::rookAttacks(theirKing, board.getAllPieces());
+    Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
+    Bitboard bishopCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
 
     Bitboard knightChecks = evalData.attackedBy[us][PieceType::KNIGHT] & attacks::knightAttacks(theirKing);
     Bitboard bishopChecks = evalData.attackedBy[us][PieceType::BISHOP] & bishopCheckSquares;
@@ -325,12 +325,12 @@ void evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 
 void initEvalData(const Board& board, EvalData& evalData)
 {
-    Bitboard whitePawns = board.getPieces(Color::WHITE, PieceType::PAWN);
-    Bitboard blackPawns = board.getPieces(Color::BLACK, PieceType::PAWN);
+    Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
+    Bitboard blackPawns = board.pieces(Color::BLACK, PieceType::PAWN);
     Bitboard whitePawnAttacks = attacks::pawnAttacks<Color::WHITE>(whitePawns);
     Bitboard blackPawnAttacks = attacks::pawnAttacks<Color::BLACK>(blackPawns);
-    uint32_t whiteKing = board.getPieces(Color::WHITE, PieceType::KING).lsb();
-    uint32_t blackKing = board.getPieces(Color::BLACK, PieceType::KING).lsb();
+    uint32_t whiteKing = board.pieces(Color::WHITE, PieceType::KING).lsb();
+    uint32_t blackKing = board.pieces(Color::BLACK, PieceType::KING).lsb();
 
     evalData.mobilityArea[Color::WHITE] = ~blackPawnAttacks;
     evalData.pawnAttackSpans[Color::WHITE] = attacks::fillUp<Color::WHITE>(whitePawnAttacks);
@@ -358,7 +358,7 @@ void evaluatePsqt(const Board& board, Trace& trace)
     for (Color c : {Color::WHITE, Color::BLACK})
         for (PieceType pt : {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN, PieceType::KING})
         {
-            Bitboard pieces = board.getPieces(c, pt);
+            Bitboard pieces = board.pieces(c, pt);
             while (pieces.any())
             {
                 uint32_t sq = pieces.poplsb();
@@ -460,64 +460,64 @@ constexpr InitialParam MATERIAL[6] = {S(  59,   86), S( 290,  360), S( 295,  380
 
 constexpr InitialParam PSQT[6][64] = {
 	{
-		S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), 
-		S(  35,   78), S(  44,   80), S(  28,   86), S(  63,   44), S(  49,   51), S(  37,   58), S( -26,   97), S( -31,   91), 
-		S(  15,   39), S(   9,   54), S(  36,   13), S(  46,  -16), S(  52,  -17), S(  84,   -8), S(  44,   37), S(  29,   27), 
-		S(  -8,   23), S(  -2,   26), S(   5,    2), S(   5,   -9), S(  25,   -9), S(  26,  -11), S(  11,   16), S(  11,    1), 
-		S( -16,    6), S( -12,   21), S(  -2,   -4), S(   6,   -8), S(   8,   -7), S(  13,  -11), S(   1,    9), S(  -1,  -11), 
-		S( -26,   -1), S( -19,   10), S( -11,   -6), S( -10,   -2), S(   1,   -2), S(  -4,   -7), S(   5,   -1), S(  -8,  -17), 
-		S( -18,    4), S( -11,   15), S(  -4,    0), S(  -5,   -3), S(   3,    8), S(  27,   -8), S(  19,    2), S(  -4,  -15), 
-		S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), 
+		S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+		S(  35,   78), S(  44,   80), S(  28,   86), S(  63,   44), S(  49,   51), S(  37,   58), S( -26,   97), S( -31,   91),
+		S(  15,   39), S(   9,   54), S(  36,   13), S(  46,  -16), S(  52,  -17), S(  84,   -8), S(  44,   37), S(  29,   27),
+		S(  -8,   23), S(  -2,   26), S(   5,    2), S(   5,   -9), S(  25,   -9), S(  26,  -11), S(  11,   16), S(  11,    1),
+		S( -16,    6), S( -12,   21), S(  -2,   -4), S(   6,   -8), S(   8,   -7), S(  13,  -11), S(   1,    9), S(  -1,  -11),
+		S( -26,   -1), S( -19,   10), S( -11,   -6), S( -10,   -2), S(   1,   -2), S(  -4,   -7), S(   5,   -1), S(  -8,  -17),
+		S( -18,    4), S( -11,   15), S(  -4,    0), S(  -5,   -3), S(   3,    8), S(  27,   -8), S(  19,    2), S(  -4,  -15),
+		S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
 	},
 	{
-		S( -92,  -36), S( -81,  -10), S( -59,    4), S( -17,  -10), S(  10,   -9), S( -27,  -31), S( -77,   -9), S( -68,  -54), 
-		S( -14,    4), S(  -1,    9), S(   1,    1), S(  10,    0), S(   7,  -10), S(  25,  -14), S(   9,    1), S(   4,  -12), 
-		S(   2,   -1), S(   5,    2), S(  10,    5), S(  16,    4), S(  29,   -2), S(  56,  -21), S(  14,   -8), S(  19,  -14), 
-		S(   9,   10), S(  18,    3), S(  29,    6), S(  37,   11), S(  30,   15), S(  45,    5), S(  33,    5), S(  39,   -1), 
-		S(   3,   12), S(  19,    3), S(  19,   16), S(  28,   14), S(  22,   26), S(  26,   10), S(  26,    8), S(   9,   14), 
-		S( -14,    0), S(  -3,    1), S(  -1,    3), S(   4,   17), S(  17,   15), S(   2,   -2), S(  16,   -3), S(   1,    4), 
-		S( -18,    5), S( -15,   10), S(  -9,    1), S(   4,    3), S(   2,    1), S(   6,    0), S(   7,   -2), S(   2,   17), 
-		S( -47,   20), S( -11,   -3), S( -19,    0), S( -10,    3), S(  -4,    4), S(   1,   -6), S( -11,    4), S( -15,   16), 
+		S( -92,  -36), S( -81,  -10), S( -59,    4), S( -17,  -10), S(  10,   -9), S( -27,  -31), S( -77,   -9), S( -68,  -54),
+		S( -14,    4), S(  -1,    9), S(   1,    1), S(  10,    0), S(   7,  -10), S(  25,  -14), S(   9,    1), S(   4,  -12),
+		S(   2,   -1), S(   5,    2), S(  10,    5), S(  16,    4), S(  29,   -2), S(  56,  -21), S(  14,   -8), S(  19,  -14),
+		S(   9,   10), S(  18,    3), S(  29,    6), S(  37,   11), S(  30,   15), S(  45,    5), S(  33,    5), S(  39,   -1),
+		S(   3,   12), S(  19,    3), S(  19,   16), S(  28,   14), S(  22,   26), S(  26,   10), S(  26,    8), S(   9,   14),
+		S( -14,    0), S(  -3,    1), S(  -1,    3), S(   4,   17), S(  17,   15), S(   2,   -2), S(  16,   -3), S(   1,    4),
+		S( -18,    5), S( -15,   10), S(  -9,    1), S(   4,    3), S(   2,    1), S(   6,    0), S(   7,   -2), S(   2,   17),
+		S( -47,   20), S( -11,   -3), S( -19,    0), S( -10,    3), S(  -4,    4), S(   1,   -6), S( -11,    4), S( -15,   16),
 	},
 	{
-		S(  -6,    8), S( -38,    9), S( -37,    3), S( -71,    9), S( -66,    9), S( -53,   -2), S( -30,    4), S( -48,   -1), 
-		S(  -6,   -6), S( -10,   -1), S(  -7,   -5), S( -18,    0), S( -10,   -9), S( -19,   -4), S( -57,    9), S( -38,    4), 
-		S(   5,    9), S(  12,   -1), S(   3,    1), S(  15,   -9), S(   4,   -3), S(  34,    2), S(  17,    1), S(  22,    7), 
-		S(  -6,    6), S(   8,    7), S(  12,    0), S(  20,   11), S(  12,    5), S(  13,    7), S(   6,    9), S(   3,    6), 
-		S(   4,    5), S(  -1,    6), S(   5,    7), S(  15,    5), S(  16,    4), S(   7,    2), S(   7,    6), S(  17,   -5), 
-		S(   0,    2), S(  15,    2), S(   6,    0), S(   2,    4), S(   7,    6), S(  10,   -1), S(  18,   -6), S(  19,   -5), 
-		S(  20,    8), S(   8,  -14), S(  15,  -12), S(  -3,   -1), S(   7,    0), S(  19,   -9), S(  28,  -11), S(  23,  -10), 
-		S(  11,   -4), S(  18,   11), S(   5,    1), S(   2,   -1), S(  12,   -5), S(   1,    9), S(  23,   -9), S(  35,  -21), 
+		S(  -6,    8), S( -38,    9), S( -37,    3), S( -71,    9), S( -66,    9), S( -53,   -2), S( -30,    4), S( -48,   -1),
+		S(  -6,   -6), S( -10,   -1), S(  -7,   -5), S( -18,    0), S( -10,   -9), S( -19,   -4), S( -57,    9), S( -38,    4),
+		S(   5,    9), S(  12,   -1), S(   3,    1), S(  15,   -9), S(   4,   -3), S(  34,    2), S(  17,    1), S(  22,    7),
+		S(  -6,    6), S(   8,    7), S(  12,    0), S(  20,   11), S(  12,    5), S(  13,    7), S(   6,    9), S(   3,    6),
+		S(   4,    5), S(  -1,    6), S(   5,    7), S(  15,    5), S(  16,    4), S(   7,    2), S(   7,    6), S(  17,   -5),
+		S(   0,    2), S(  15,    2), S(   6,    0), S(   2,    4), S(   7,    6), S(  10,   -1), S(  18,   -6), S(  19,   -5),
+		S(  20,    8), S(   8,  -14), S(  15,  -12), S(  -3,   -1), S(   7,    0), S(  19,   -9), S(  28,  -11), S(  23,  -10),
+		S(  11,   -4), S(  18,   11), S(   5,    1), S(   2,   -1), S(  12,   -5), S(   1,    9), S(  23,   -9), S(  35,  -21),
 	},
 	{
-		S( -12,   16), S( -15,   20), S( -24,   28), S( -28,   25), S( -18,   18), S(   1,   16), S(  -3,   21), S(  19,   11), 
-		S(  -2,   11), S(   3,   16), S(  10,   18), S(  25,    6), S(  11,    7), S(  14,    6), S(  24,    2), S(  28,    0), 
-		S( -10,   11), S(  17,    6), S(   8,    8), S(   8,    3), S(  27,   -3), S(  34,  -10), S(  49,   -7), S(  20,   -7), 
-		S(  -8,   13), S(  10,    6), S(  10,   10), S(   6,    6), S(  16,   -4), S(  21,   -7), S(  17,    0), S(  10,   -4), 
-		S( -15,    6), S(  -8,    7), S(  -3,    5), S(   2,    4), S(   7,    2), S(  -5,    5), S(  13,   -1), S(  -7,   -2), 
-		S( -22,    0), S( -17,   -3), S( -13,   -5), S( -10,   -3), S(  -1,   -7), S(  -6,  -10), S(  17,  -22), S(   0,  -21), 
-		S( -23,   -6), S( -19,   -5), S(  -9,   -6), S(  -8,   -8), S(  -3,  -14), S(   1,  -17), S(   7,  -20), S( -19,  -16), 
-		S( -16,   -4), S( -15,   -9), S( -14,   -3), S(  -6,  -11), S(  -1,  -17), S(  -5,  -11), S(  -6,  -13), S( -19,  -12), 
+		S( -12,   16), S( -15,   20), S( -24,   28), S( -28,   25), S( -18,   18), S(   1,   16), S(  -3,   21), S(  19,   11),
+		S(  -2,   11), S(   3,   16), S(  10,   18), S(  25,    6), S(  11,    7), S(  14,    6), S(  24,    2), S(  28,    0),
+		S( -10,   11), S(  17,    6), S(   8,    8), S(   8,    3), S(  27,   -3), S(  34,  -10), S(  49,   -7), S(  20,   -7),
+		S(  -8,   13), S(  10,    6), S(  10,   10), S(   6,    6), S(  16,   -4), S(  21,   -7), S(  17,    0), S(  10,   -4),
+		S( -15,    6), S(  -8,    7), S(  -3,    5), S(   2,    4), S(   7,    2), S(  -5,    5), S(  13,   -1), S(  -7,   -2),
+		S( -22,    0), S( -17,   -3), S( -13,   -5), S( -10,   -3), S(  -1,   -7), S(  -6,  -10), S(  17,  -22), S(   0,  -21),
+		S( -23,   -6), S( -19,   -5), S(  -9,   -6), S(  -8,   -8), S(  -3,  -14), S(   1,  -17), S(   7,  -20), S( -19,  -16),
+		S( -16,   -4), S( -15,   -9), S( -14,   -3), S(  -6,  -11), S(  -1,  -17), S(  -5,  -11), S(  -6,  -13), S( -19,  -12),
 	},
 	{
-		S( -20,  -10), S( -33,    1), S( -25,   23), S(   0,   12), S(  -5,   14), S(   7,    7), S(  48,  -39), S(   9,   -9), 
-		S(   5,  -15), S( -15,   -3), S( -13,   24), S( -25,   43), S( -27,   57), S(   1,   24), S(  -3,   11), S(  40,    9), 
-		S(   7,   -5), S(   1,   -2), S(  -5,   22), S(  -4,   27), S( -14,   41), S(   6,   12), S(  22,   -2), S(  26,    0), 
-		S(   0,    7), S(   1,   15), S(   4,   13), S( -10,   28), S( -14,   32), S(   9,   16), S(   8,   32), S(  17,   13), 
-		S(   0,    3), S(   3,   15), S(  -2,   13), S(  -6,   21), S(   5,   22), S(   2,   23), S(  17,    6), S(  15,   10), 
-		S(   1,  -18), S(   0,   -5), S( -10,    7), S( -10,   14), S(  -5,   19), S(   0,    5), S(  13,  -14), S(  14,  -19), 
-		S(   3,  -31), S(  -3,  -32), S(   1,  -22), S(   1,   -8), S(   0,   -7), S(   6,  -33), S(  16,  -64), S(  28,  -77), 
-		S( -15,  -29), S( -16,  -24), S( -14,  -14), S( -11,  -14), S( -10,  -15), S( -19,  -25), S(  -7,  -39), S(   9,  -49), 
+		S( -20,  -10), S( -33,    1), S( -25,   23), S(   0,   12), S(  -5,   14), S(   7,    7), S(  48,  -39), S(   9,   -9),
+		S(   5,  -15), S( -15,   -3), S( -13,   24), S( -25,   43), S( -27,   57), S(   1,   24), S(  -3,   11), S(  40,    9),
+		S(   7,   -5), S(   1,   -2), S(  -5,   22), S(  -4,   27), S( -14,   41), S(   6,   12), S(  22,   -2), S(  26,    0),
+		S(   0,    7), S(   1,   15), S(   4,   13), S( -10,   28), S( -14,   32), S(   9,   16), S(   8,   32), S(  17,   13),
+		S(   0,    3), S(   3,   15), S(  -2,   13), S(  -6,   21), S(   5,   22), S(   2,   23), S(  17,    6), S(  15,   10),
+		S(   1,  -18), S(   0,   -5), S( -10,    7), S( -10,   14), S(  -5,   19), S(   0,    5), S(  13,  -14), S(  14,  -19),
+		S(   3,  -31), S(  -3,  -32), S(   1,  -22), S(   1,   -8), S(   0,   -7), S(   6,  -33), S(  16,  -64), S(  28,  -77),
+		S( -15,  -29), S( -16,  -24), S( -14,  -14), S( -11,  -14), S( -10,  -15), S( -19,  -25), S(  -7,  -39), S(   9,  -49),
 	},
 	{
-		S(  44,  -53), S(  82,  -30), S( 121,  -33), S(  55,  -11), S(  62,  -33), S( -22,    2), S(  16,    7), S( 100,  -70), 
-		S(-100,   28), S(   9,   29), S(  29,   14), S( 150,  -17), S(  91,  -10), S(  45,   27), S(   8,   46), S( -92,   48), 
-		S(-112,   27), S(  39,   19), S(  35,    9), S(  46,    2), S(  85,    1), S( 101,   13), S(  -9,   44), S( -69,   32), 
-		S( -65,    2), S( -24,   10), S( -14,    7), S( -13,    1), S( -17,   -2), S( -26,   16), S( -60,   26), S(-151,   30), 
-		S( -71,   -9), S( -28,    1), S( -30,    4), S( -29,    2), S( -32,    1), S( -34,    6), S( -67,   16), S(-148,   20), 
-		S( -50,   -4), S(   7,   -2), S( -21,    3), S(  -5,    0), S(  -7,   -1), S( -23,    6), S( -15,    5), S( -73,   10), 
-		S(  33,  -15), S(  23,   -1), S(  19,   -1), S(   1,   -3), S(  -3,   -1), S(   7,    1), S(  23,   -2), S(  18,  -10), 
-		S(  20,  -34), S(  53,  -26), S(  25,  -10), S( -29,   -2), S(   7,  -19), S( -22,    3), S(  32,  -16), S(  30,  -40), 
+		S(  44,  -53), S(  82,  -30), S( 121,  -33), S(  55,  -11), S(  62,  -33), S( -22,    2), S(  16,    7), S( 100,  -70),
+		S(-100,   28), S(   9,   29), S(  29,   14), S( 150,  -17), S(  91,  -10), S(  45,   27), S(   8,   46), S( -92,   48),
+		S(-112,   27), S(  39,   19), S(  35,    9), S(  46,    2), S(  85,    1), S( 101,   13), S(  -9,   44), S( -69,   32),
+		S( -65,    2), S( -24,   10), S( -14,    7), S( -13,    1), S( -17,   -2), S( -26,   16), S( -60,   26), S(-151,   30),
+		S( -71,   -9), S( -28,    1), S( -30,    4), S( -29,    2), S( -32,    1), S( -34,    6), S( -67,   16), S(-148,   20),
+		S( -50,   -4), S(   7,   -2), S( -21,    3), S(  -5,    0), S(  -7,   -1), S( -23,    6), S( -15,    5), S( -73,   10),
+		S(  33,  -15), S(  23,   -1), S(  19,   -1), S(   1,   -3), S(  -3,   -1), S(   7,    1), S(  23,   -2), S(  18,  -10),
+		S(  20,  -34), S(  53,  -26), S(  25,  -10), S( -29,   -2), S(   7,  -19), S( -22,    3), S(  32,  -16), S(  30,  -40),
 	},
 };
 
