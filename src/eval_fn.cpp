@@ -446,7 +446,11 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
                 if (c == Color::WHITE)
                     sq ^= 56;
                 trace.psqt[static_cast<int>(pt)][sq][c]++;
-                eval += MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq];
+                PackedScore d = MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq];
+                if (c == Color::WHITE)
+                    eval += d;
+                else
+                    eval -= d;
             }
         }
 
