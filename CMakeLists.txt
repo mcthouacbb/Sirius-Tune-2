@@ -21,6 +21,7 @@ set(SRCS
 
     "src/dataset.cpp"
     "src/dataset.h"
+    "src/eval_constants.h"
     "src/eval_fn.cpp"
     "src/eval_fn.h"
     "src/main.cpp"
