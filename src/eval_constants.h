@@ -119,8 +119,8 @@ constexpr PackedScore KING_ATTACKER_WEIGHT[4] = {S(  15,   -4), S(   7,   -0), S
 constexpr PackedScore KING_ATTACKS[14] = {S( -26,    8), S( -28,    4), S( -29,    2), S( -27,    6), S( -18,    4), S(  -3,    1), S(  20,   -6), S(  49,  -18), S(  94,  -38), S( 123,  -43), S( 160,  -57), S( 185,  -46), S( 222, -133), S( 180,   17)};
 
 constexpr PackedScore KNIGHT_OUTPOST = S(  24,   18);
-constexpr InitialParam BISHOP_PAWNS[7] = {S(  17,   32), S(  19,   28), S(  17,   21), S(  12,   13), S(   8,    4), S(   6,   -9), S(   0,  -22)};
-constexpr InitialParam BISHOP_PAIR = S(  20,   60);
+constexpr PackedScore BISHOP_PAWNS[7] = {S(  17,   32), S(  19,   28), S(  17,   21), S(  12,   13), S(   8,    4), S(   6,   -9), S(   0,  -22)};
+constexpr PackedScore BISHOP_PAIR = S(  20,   60);
 constexpr PackedScore ROOK_OPEN[2] = {S(  20,   11), S(  11,   11)};
 
 constexpr PackedScore TEMPO = S(  29,   30);
