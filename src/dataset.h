@@ -17,6 +17,7 @@ struct Position
     int coeffEnd;
     double wdl;
     double phase;
+    double egScale;
 };
 
 struct Dataset

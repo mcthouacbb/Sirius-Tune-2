@@ -75,6 +75,8 @@ struct Trace
     TraceElem openRook[2];
 
     TraceElem tempo;
+
+    double egScale;
 };
 
 struct EvalData
@@ -457,6 +459,15 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
     return eval;
 }
 
+double evaluateScale(const Board& board, PackedScore eval)
+{
+    Color strongSide = eval.eg() > 0 ? Color::WHITE : Color::BLACK;
+
+    int strongPawns = board.pieces(strongSide, PieceType::PAWN).popcount();
+
+    return 80 + strongPawns * 7;
+}
+
 Trace getTrace(const Board& board)
 {
     EvalData evalData = {};
@@ -479,6 +490,8 @@ Trace getTrace(const Board& board)
 
     trace.tempo[board.sideToMove()]++;
 
+    trace.egScale = evaluateScale(board, eval) / 128.0;
+
     eval += (board.sideToMove() == Color::WHITE ? TEMPO : -TEMPO);
 
     return trace;
@@ -495,7 +508,7 @@ void EvalFn::reset()
     m_TraceIdx = 0;
 }
 
-std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
+std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
 {
     reset();
     size_t pos = m_Coefficients.size();
@@ -534,7 +547,7 @@ std::pair<size_t, size_t> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.openRook);
 
     addCoefficient(trace.tempo);
-    return {pos, m_Coefficients.size()};
+    return {pos, m_Coefficients.size(), trace.egScale};
 }
 
 template<typename T>
@@ -796,11 +809,11 @@ void printRestParams(PrintState& state)
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr InitialParam BISHOP_PAWNS[7] = ";
+    state.ss << "constexpr PackedScore BISHOP_PAWNS[7] = ";
     printArray<ALIGN_SIZE>(state, 7);
     state.ss << ";\n";
 
-    state.ss << "constexpr InitialParam BISHOP_PAIR = ";
+    state.ss << "constexpr PackedScore BISHOP_PAIR = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 

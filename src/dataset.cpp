@@ -53,7 +53,7 @@ Dataset loadDataset(std::ifstream& file)
         Board board;
         board.setToFen(std::string_view(line.begin(), line.begin() + sixthSpace));
 
-        auto [coeffBegin, coeffEnd] = eval.getCoefficients(board);
+        auto [coeffBegin, coeffEnd, egScale] = eval.getCoefficients(board);
 
         Position pos;
         pos.coeffBegin = coeffBegin;
@@ -65,6 +65,7 @@ Dataset loadDataset(std::ifstream& file)
             board.pieces(PieceType::BISHOP).popcount() +
             board.pieces(PieceType::KNIGHT).popcount();
         pos.phase /= 24.0;
+        pos.egScale = egScale;
 
         positions.push_back(pos);
 

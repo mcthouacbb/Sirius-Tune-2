@@ -94,7 +94,7 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
     {
         const auto& coeff = coefficients[i];
         gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
-        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
+        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
     }
 }
 
