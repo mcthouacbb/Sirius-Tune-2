@@ -439,6 +439,8 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
 {
     PackedScore eval{0, 0};
     for (Color c : {Color::WHITE, Color::BLACK})
+    {
+        bool mirror = fileOf(board.kingSq(c)) >= 4;
         for (PieceType pt : {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN, PieceType::KING})
         {
             Bitboard pieces = board.pieces(c, pt);
@@ -447,6 +449,8 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
                 uint32_t sq = pieces.poplsb();
                 if (c == Color::WHITE)
                     sq ^= 56;
+                if (mirror)
+                    sq ^= 7;
                 trace.psqt[static_cast<int>(pt)][sq][c]++;
                 PackedScore d = MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq];
                 if (c == Color::WHITE)
@@ -455,6 +459,7 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
                     eval -= d;
             }
         }
+    }
 
     return eval;
 }
