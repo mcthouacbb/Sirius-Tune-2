@@ -57,8 +57,10 @@ struct Trace
     TraceElem isolatedPawn[8];
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
+
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
+    TraceElem freePasser[8];
 
     TraceElem pawnStorm[3][8];
     TraceElem pawnShield[3][8];
@@ -240,10 +242,17 @@ PackedScore evaluateKingPawn(const Board & board, const EvalData & evalData, Tra
     while (passers.any())
     {
         uint32_t passer = passers.poplsb();
+        int rank = relativeRankOf<us>(passer);
         eval += OUR_PASSER_PROXIMITY[chebyshev(ourKing, passer)];
         eval += THEIR_PASSER_PROXIMITY[chebyshev(theirKing, passer)];
         TRACE_INC(ourPasserProximity[chebyshev(ourKing, passer)]);
         TRACE_INC(theirPasserProximity[chebyshev(theirKing, passer)]);
+
+        if (board.pieceAt(passer + attacks::pawnPushOffset<us>()) == Piece::NONE)
+        {
+            eval += FREE_PASSER[rank];
+            TRACE_INC(freePasser[rank]);
+        }
     }
 
     return eval;
@@ -534,8 +543,10 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.isolatedPawn);
     addCoefficientArray(trace.pawnPhalanx);
     addCoefficientArray(trace.defendedPawn);
+
     addCoefficientArray(trace.ourPasserProximity);
     addCoefficientArray(trace.theirPasserProximity);
+    addCoefficientArray(trace.freePasser);
 
     addCoefficientArray2D(trace.pawnStorm);
     addCoefficientArray2D(trace.pawnShield);
@@ -599,8 +610,10 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, ISOLATED_PAWN);
     addEvalParamArray(params, PAWN_PHALANX);
     addEvalParamArray(params, DEFENDED_PAWN);
+
     addEvalParamArray(params, OUR_PASSER_PROXIMITY);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY);
+    addEvalParamArray(params, FREE_PASSER);
 
     addEvalParamArray2D(params, PAWN_STORM);
     addEvalParamArray2D(params, PAWN_SHIELD);
@@ -766,11 +779,17 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
+    state.ss << '\n';
+
     state.ss << "constexpr PackedScore OUR_PASSER_PROXIMITY[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore THEIR_PASSER_PROXIMITY[8] = ";
+    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore FREE_PASSER[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
