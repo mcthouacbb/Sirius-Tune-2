@@ -243,15 +243,18 @@ PackedScore evaluateKingPawn(const Board & board, const EvalData & evalData, Tra
     {
         Square passer = passers.poplsb();
         int rank = passer.relativeRank<us>();
-        eval += OUR_PASSER_PROXIMITY[Square::chebyshev(ourKing, passer)];
-        eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, passer)];
-        TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, passer)]);
-        TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, passer)]);
-
-        if (board.pieceAt(passer + attacks::pawnPushOffset<us>()) == Piece::NONE)
+        if (rank >= RANK_4)
         {
-            eval += FREE_PASSER[rank];
-            TRACE_INC(freePasser[rank]);
+            eval += OUR_PASSER_PROXIMITY[Square::chebyshev(ourKing, passer)];
+            eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, passer)];
+            TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, passer)]);
+            TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, passer)]);
+
+            if (board.pieceAt(passer + attacks::pawnPushOffset<us>()) == Piece::NONE)
+            {
+                eval += FREE_PASSER[rank];
+                TRACE_INC(freePasser[rank]);
+            }
         }
     }
 
