@@ -699,7 +699,7 @@ EvalParams EvalFn::getMaterialParams()
 EvalParams EvalFn::getKParams()
 {
     constexpr PackedScore K_MATERIAL[6] = {
-        {59,   86}, {290,  360}, {295,  380}, {408,  668}, {857, 1219}, {0, 0}
+        {50, 79}, {273, 342}, {279,  358}, {387,  629}, {823, 1178}, {0, 0}
     };
 
     EvalParams params = getInitialParams();
