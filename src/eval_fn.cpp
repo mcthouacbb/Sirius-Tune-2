@@ -59,14 +59,13 @@ struct Trace
     TraceElem threatByKing[6];
     TraceElem pushThreat;
 
-    TraceElem passedPawn[8];
     TraceElem isolatedPawn[8];
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
 
+    TraceElem passedPawn[2][2][8];
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
-    TraceElem freePasser[8];
 
     TraceElem pawnStorm[3][8];
     TraceElem pawnShield[3][8];
@@ -237,11 +236,8 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
     {
         Square sq = pawns.poplsb();
         if (board.isPassedPawn(sq))
-        {
             pawnStructure.passedPawns |= Bitboard::fromSquare(sq);
-            eval += PASSED_PAWN[sq.relativeRank<us>()];
-            TRACE_INC(passedPawn[sq.relativeRank<us>()]);
-        }
+
         if (board.isIsolatedPawn(sq))
         {
             eval += ISOLATED_PAWN[sq.file()];
@@ -269,7 +265,7 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
 }
 
 template<Color us>
-PackedScore evaluatePassedPawns(const Board & board, const PawnStructure& pawnStructure, Trace& trace)
+PackedScore evaluatePassedPawns(const Board & board, const PawnStructure& pawnStructure, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
     Square ourKing = board.kingSq(us);
@@ -285,16 +281,17 @@ PackedScore evaluatePassedPawns(const Board & board, const PawnStructure& pawnSt
         int rank = passer.relativeRank<us>();
         if (rank >= RANK_4)
         {
+            Square pushSq = passer + attacks::pawnPushOffset<us>();
+
+            bool blocked = board.pieceAt(pushSq) != Piece::NONE;
+            bool controlled = (evalData.attacked[them] & Bitboard::fromSquare(pushSq)).any();
+            eval += PASSED_PAWN[blocked][controlled][rank];
+            TRACE_INC(passedPawn[blocked][controlled][rank]);
+
             eval += OUR_PASSER_PROXIMITY[Square::chebyshev(ourKing, passer)];
             eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, passer)];
             TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, passer)]);
             TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, passer)]);
-
-            if (board.pieceAt(passer + attacks::pawnPushOffset<us>()) == Piece::NONE)
-            {
-                eval += FREE_PASSER[rank];
-                TRACE_INC(freePasser[rank]);
-            }
         }
     }
 
@@ -540,7 +537,6 @@ Trace getTrace(const Board& board)
     eval += evaluateKnightOutposts<Color::WHITE>(board, pawnStructure, trace) - evaluateKnightOutposts<Color::BLACK>(board, pawnStructure, trace);
     eval += evaluateBishopPawns<Color::WHITE>(board, trace) - evaluateBishopPawns<Color::BLACK>(board, trace);
     eval += evaluateRookOpen<Color::WHITE>(board, trace) - evaluateRookOpen<Color::BLACK>(board, trace);
-    eval += evaluatePassedPawns<Color::WHITE>(board, pawnStructure, trace) - evaluatePassedPawns<Color::BLACK>(board, pawnStructure, trace);
 
     eval += evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
     eval += evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
@@ -548,7 +544,7 @@ Trace getTrace(const Board& board)
     eval += evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace);
 
     eval += evaluateKings<Color::WHITE>(board, evalData, trace) - evaluateKings<Color::BLACK>(board, evalData, trace);
-
+    eval += evaluatePassedPawns<Color::WHITE>(board, pawnStructure, evalData, trace) - evaluatePassedPawns<Color::BLACK>(board, pawnStructure, evalData, trace);
     eval += evaluateThreats<Color::WHITE>(board, evalData, trace) - evaluateThreats<Color::BLACK>(board, evalData, trace);
 
     trace.tempo[board.sideToMove()]++;
@@ -588,14 +584,13 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.threatByKing);
     addCoefficient(trace.pushThreat);
 
-    addCoefficientArray(trace.passedPawn);
     addCoefficientArray(trace.isolatedPawn);
     addCoefficientArray(trace.pawnPhalanx);
     addCoefficientArray(trace.defendedPawn);
 
+    addCoefficientArray3D(trace.passedPawn);
     addCoefficientArray(trace.ourPasserProximity);
     addCoefficientArray(trace.theirPasserProximity);
-    addCoefficientArray(trace.freePasser);
 
     addCoefficientArray2D(trace.pawnStorm);
     addCoefficientArray2D(trace.pawnShield);
@@ -635,6 +630,13 @@ void addEvalParamArray2D(EvalParams& params, const T& t)
         addEvalParamArray(params, array);
 }
 
+template<typename T>
+void addEvalParamArray3D(EvalParams& params, const T& t)
+{
+    for (auto& array : t)
+        addEvalParamArray2D(params, array);
+}
+
 EvalParams EvalFn::getInitialParams()
 {
     EvalParams params;
@@ -655,14 +657,13 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, THREAT_BY_KING);
     addEvalParam(params, PUSH_THREAT);
 
-    addEvalParamArray(params, PASSED_PAWN);
     addEvalParamArray(params, ISOLATED_PAWN);
     addEvalParamArray(params, PAWN_PHALANX);
     addEvalParamArray(params, DEFENDED_PAWN);
 
+    addEvalParamArray3D(params, PASSED_PAWN);
     addEvalParamArray(params, OUR_PASSER_PROXIMITY);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY);
-    addEvalParamArray(params, FREE_PASSER);
 
     addEvalParamArray2D(params, PAWN_STORM);
     addEvalParamArray2D(params, PAWN_SHIELD);
@@ -759,14 +760,33 @@ void printArray(PrintState& state, int len)
 }
 
 template<int ALIGN_SIZE>
-void printArray2D(PrintState& state, int outerLen, int innerLen)
+void printArray2D(PrintState& state, int outerLen, int innerLen, bool indent = false)
 {
     state.ss << "{\n";
     for (int i = 0; i < outerLen; i++)
     {
         state.ss << '\t';
+        if (indent)
+            state.ss << '\t';
         printArray<ALIGN_SIZE>(state, innerLen);
         if (i != outerLen - 1)
+            state.ss << ',';
+        state.ss << '\n';
+    }
+    if (indent)
+        state.ss << '\t';
+    state.ss << "}";
+}
+
+template<int ALIGN_SIZE>
+void printArray3D(PrintState& state, int len1, int len2, int len3)
+{
+    state.ss << "{\n";
+    for (int i = 0; i < len1; i++)
+    {
+        state.ss << '\t';
+        printArray2D<ALIGN_SIZE>(state, len2, len3, true);
+        if (i != len1 - 1)
             state.ss << ',';
         state.ss << '\n';
     }
@@ -812,10 +832,6 @@ void printRestParams(PrintState& state)
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore PASSED_PAWN[8] = ";
-    printArray<ALIGN_SIZE>(state, 8);
-    state.ss << ";\n";
-
     state.ss << "constexpr PackedScore ISOLATED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
@@ -830,15 +846,15 @@ void printRestParams(PrintState& state)
 
     state.ss << '\n';
 
+    state.ss << "constexpr PackedScore PASSED_PAWN[2][2][8] = ";
+    printArray3D<ALIGN_SIZE>(state, 2, 2, 8);
+    state.ss << ";\n";
+
     state.ss << "constexpr PackedScore OUR_PASSER_PROXIMITY[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore THEIR_PASSER_PROXIMITY[8] = ";
-    printArray<ALIGN_SIZE>(state, 8);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore FREE_PASSER[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
