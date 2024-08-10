@@ -42,6 +42,9 @@ using TraceElem = ColorArray<int>;
 #define TRACE_OFFSET(elem) (offsetof(Trace, elem) / sizeof(TraceElem))
 #define TRACE_SIZE(elem) (sizeof(Trace::elem) / sizeof(TraceElem))
 
+#define TRACE_INC(traceElem) trace.traceElem[us]++
+#define TRACE_ADD(traceElem, amount) trace.traceElem[us] += amount
+
 struct Trace
 {
     TraceElem psqt[6][64];
@@ -90,16 +93,84 @@ struct EvalData
     ColorArray<Bitboard> attacked;
     ColorArray<Bitboard> attackedBy2;
     ColorArray<PieceTypeArray<Bitboard>> attackedBy;
-    ColorArray<Bitboard> pawnAttackSpans;
     ColorArray<Bitboard> kingRing;
     ColorArray<PackedScore> attackWeight;
     ColorArray<int> attackCount;
+};
 
+struct PawnStructure
+{
+    PawnStructure() = default;
+    PawnStructure(const Board& board)
+    {
+        Bitboard wpawns = board.pieces(Color::WHITE, PieceType::PAWN);
+        Bitboard bpawns = board.pieces(Color::BLACK, PieceType::PAWN);
+        pawnAttacks[Color::WHITE] = attacks::pawnAttacks<Color::WHITE>(wpawns);
+        pawnAttackSpans[Color::WHITE] = attacks::fillUp<Color::WHITE>(pawnAttacks[Color::WHITE]);
+        passedPawns = Bitboard(0);
+
+        pawnAttacks[Color::BLACK] = attacks::pawnAttacks<Color::BLACK>(bpawns);
+        pawnAttackSpans[Color::BLACK] = attacks::fillUp<Color::BLACK>(pawnAttacks[Color::BLACK]);
+        passedPawns = Bitboard(0);
+    }
+
+    ColorArray<Bitboard> pawnAttacks;
+    ColorArray<Bitboard> pawnAttackSpans;
     Bitboard passedPawns;
 };
 
-#define TRACE_INC(traceElem) trace.traceElem[us]++
-#define TRACE_ADD(traceElem, amount) trace.traceElem[us] += amount
+template<Color us>
+PackedScore evaluateKnightOutposts(const Board& board, const PawnStructure& pawnStructure, Trace& trace)
+{
+    constexpr Color them = ~us;
+    Bitboard outpostRanks = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
+    Bitboard outposts = outpostRanks & ~pawnStructure.pawnAttackSpans[them] & pawnStructure.pawnAttacks[us];
+    TRACE_ADD(knightOutpost, (board.pieces(us, PieceType::KNIGHT) & outposts).popcount());
+    return KNIGHT_OUTPOST * (board.pieces(us, PieceType::KNIGHT) & outposts).popcount();
+}
+
+template<Color us>
+PackedScore evaluateBishopPawns(const Board& board, Trace& trace)
+{
+    Bitboard bishops = board.pieces(us, PieceType::BISHOP);
+
+    PackedScore eval{0, 0};
+    while (bishops.any())
+    {
+        Square sq = bishops.poplsb();
+        bool lightSquare = (Bitboard::fromSquare(sq) & LIGHT_SQUARES_BB).any();
+        Bitboard sameColorPawns = board.pieces(us, PieceType::PAWN) & (lightSquare ? LIGHT_SQUARES_BB : DARK_SQUARES_BB);
+        TRACE_INC(bishopPawns[std::min(sameColorPawns.popcount(), 6u)]);
+        eval += BISHOP_PAWNS[std::min(sameColorPawns.popcount(), 6u)];
+    }
+    return eval;
+}
+
+template<Color us>
+PackedScore evaluateRookOpen(const Board& board, Trace& trace)
+{
+    constexpr Color them = ~us;
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
+    Bitboard rooks = board.pieces(us, PieceType::ROOK);
+
+    PackedScore eval{0, 0};
+    while (rooks.any())
+    {
+        Bitboard fileBB = Bitboard::fileBB(rooks.poplsb().file());
+        if ((ourPawns & fileBB).empty())
+            eval += (theirPawns & fileBB).any() ? ROOK_OPEN[1] : ROOK_OPEN[0];
+
+        if ((ourPawns & fileBB).empty())
+        {
+            if ((theirPawns & fileBB).any())
+                TRACE_INC(openRook[1]);
+            else
+                TRACE_INC(openRook[0]);
+        }
+    }
+    return eval;
+}
 
 template<Color us, PieceType piece>
 PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
@@ -147,40 +218,6 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
             TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
             evalData.attackCount[us] += kingRingAtks.popcount();
         }
-
-        Bitboard fileBB = Bitboard::fileBB(sq.file());
-
-        if constexpr (piece == PieceType::ROOK)
-        {
-            if ((ourPawns & fileBB).empty())
-                eval += (theirPawns & fileBB).any() ? ROOK_OPEN[1] : ROOK_OPEN[0];
-
-            if ((ourPawns & fileBB).empty())
-            {
-                if ((theirPawns & fileBB).any())
-                    TRACE_INC(openRook[1]);
-                else
-                    TRACE_INC(openRook[0]);
-            }
-        }
-
-        if constexpr (piece == PieceType::KNIGHT)
-        {
-            Bitboard outposts = outpostSquares & ~evalData.pawnAttackSpans[them] & evalData.attackedBy[us][PieceType::PAWN];
-            if ((Bitboard::fromSquare(sq) & outposts).any())
-            {
-                eval += KNIGHT_OUTPOST;
-                TRACE_INC(knightOutpost);
-            }
-        }
-
-        if constexpr (piece == PieceType::BISHOP)
-        {
-            bool lightSquare = (Bitboard::fromSquare(sq) & LIGHT_SQUARES_BB).any();
-            Bitboard sameColorPawns = board.pieces(us, PieceType::PAWN) & (lightSquare ? LIGHT_SQUARES_BB : DARK_SQUARES_BB);
-            eval += BISHOP_PAWNS[std::min(sameColorPawns.popcount(), 6u)];
-            TRACE_INC(bishopPawns[std::min(sameColorPawns.popcount(), 6u)]);
-        }
     }
 
     return eval;
@@ -189,7 +226,7 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
 
 template<Color us>
-PackedScore evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
+PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
 
@@ -201,7 +238,7 @@ PackedScore evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
         Square sq = pawns.poplsb();
         if (board.isPassedPawn(sq))
         {
-            evalData.passedPawns |= Bitboard::fromSquare(sq);
+            pawnStructure.passedPawns |= Bitboard::fromSquare(sq);
             eval += PASSED_PAWN[sq.relativeRank<us>()];
             TRACE_INC(passedPawn[sq.relativeRank<us>()]);
         }
@@ -232,13 +269,13 @@ PackedScore evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
 }
 
 template<Color us>
-PackedScore evaluateKingPawn(const Board & board, const EvalData & evalData, Trace& trace)
+PackedScore evaluatePassedPawns(const Board & board, const PawnStructure& pawnStructure, Trace& trace)
 {
     constexpr Color them = ~us;
     Square ourKing = board.kingSq(us);
     Square theirKing = board.kingSq(them);
 
-    Bitboard passers = evalData.passedPawns & board.pieces(us);
+    Bitboard passers = pawnStructure.passedPawns & board.pieces(us);
 
     PackedScore eval{0, 0};
 
@@ -264,9 +301,9 @@ PackedScore evaluateKingPawn(const Board & board, const EvalData & evalData, Tra
     return eval;
 }
 
-PackedScore evaluatePawns(const Board& board, EvalData& evalData, Trace& trace)
+PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
-    return evaluatePawns<Color::WHITE>(board, evalData, trace) - evaluatePawns<Color::BLACK>(board, evalData, trace);
+    return evaluatePawns<Color::WHITE>(board, pawnStructure, trace) - evaluatePawns<Color::BLACK>(board, pawnStructure, trace);
 }
 
 template<Color us>
@@ -420,18 +457,15 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     return eval;
 }
 
-void initEvalData(const Board& board, EvalData& evalData)
+void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& pawnStructure)
 {
     Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
     Bitboard blackPawns = board.pieces(Color::BLACK, PieceType::PAWN);
-    Bitboard whitePawnAttacks = attacks::pawnAttacks<Color::WHITE>(whitePawns);
-    Bitboard blackPawnAttacks = attacks::pawnAttacks<Color::BLACK>(blackPawns);
     Square whiteKing = board.kingSq(Color::WHITE);
     Square blackKing = board.kingSq(Color::BLACK);
 
-    evalData.mobilityArea[Color::WHITE] = ~blackPawnAttacks;
-    evalData.pawnAttackSpans[Color::WHITE] = attacks::fillUp<Color::WHITE>(whitePawnAttacks);
-    evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = whitePawnAttacks;
+    evalData.mobilityArea[Color::WHITE] = ~pawnStructure.pawnAttacks[Color::BLACK];
+    evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::WHITE];
 
     Bitboard whiteKingAtks = attacks::kingAttacks(whiteKing);
     evalData.attackedBy[Color::WHITE][PieceType::KING] = whiteKingAtks;
@@ -439,9 +473,8 @@ void initEvalData(const Board& board, EvalData& evalData)
     evalData.attacked[Color::WHITE] |= whiteKingAtks;
     evalData.kingRing[Color::WHITE] = (whiteKingAtks | whiteKingAtks.north()) & ~Bitboard::fromSquare(whiteKing);
 
-    evalData.mobilityArea[Color::BLACK] = ~whitePawnAttacks;
-    evalData.pawnAttackSpans[Color::BLACK] = attacks::fillUp<Color::BLACK>(blackPawnAttacks);
-    evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = blackPawnAttacks;
+    evalData.mobilityArea[Color::BLACK] = ~pawnStructure.pawnAttacks[Color::WHITE];
+    evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::BLACK];
 
     Bitboard blackKingAtks = attacks::kingAttacks(blackKing);
     evalData.attackedBy[Color::BLACK][PieceType::KING] = blackKingAtks;
@@ -492,12 +525,22 @@ double evaluateScale(const Board& board, PackedScore eval)
 
 Trace getTrace(const Board& board)
 {
-    EvalData evalData = {};
-    initEvalData(board, evalData);
-
     Trace trace = {};
 
     PackedScore eval = evaluatePsqt(board, trace);
+
+    PawnStructure pawnStructure(board);
+
+    EvalData evalData = {};
+    initEvalData(board, evalData, pawnStructure);
+
+
+    eval += evaluatePawns(board, pawnStructure, trace);
+
+    eval += evaluateKnightOutposts<Color::WHITE>(board, pawnStructure, trace) - evaluateKnightOutposts<Color::BLACK>(board, pawnStructure, trace);
+    eval += evaluateBishopPawns<Color::WHITE>(board, trace) - evaluateBishopPawns<Color::BLACK>(board, trace);
+    eval += evaluateRookOpen<Color::WHITE>(board, trace) - evaluateRookOpen<Color::BLACK>(board, trace);
+    eval += evaluatePassedPawns<Color::WHITE>(board, pawnStructure, trace) - evaluatePassedPawns<Color::BLACK>(board, pawnStructure, trace);
 
     eval += evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
     eval += evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
@@ -506,8 +549,6 @@ Trace getTrace(const Board& board)
 
     eval += evaluateKings<Color::WHITE>(board, evalData, trace) - evaluateKings<Color::BLACK>(board, evalData, trace);
 
-    eval += evaluatePawns(board, evalData, trace);
-    eval += evaluateKingPawn<Color::WHITE>(board, evalData, trace) - evaluateKingPawn<Color::BLACK>(board, evalData, trace);
     eval += evaluateThreats<Color::WHITE>(board, evalData, trace) - evaluateThreats<Color::BLACK>(board, evalData, trace);
 
     trace.tempo[board.sideToMove()]++;
