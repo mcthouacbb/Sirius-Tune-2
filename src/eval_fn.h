@@ -39,6 +39,13 @@ private:
             addCoefficientArray(traceElem);
     }
 
+    template<typename T>
+    void addCoefficientArray3D(const T& trace)
+    {
+        for (auto& traceElem : trace)
+            addCoefficientArray2D(traceElem);
+    }
+
     std::vector<Coefficient>& m_Coefficients;
     int m_TraceIdx;
 };
