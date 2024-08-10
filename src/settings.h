@@ -3,7 +3,7 @@
 constexpr int TUNE_THREADS = 4;
 constexpr int TUNE_MAX_EPOCHS = 50000;
 constexpr bool TUNE_FROM_ZERO = false;
-constexpr bool TUNE_FROM_MATERIAL = true;
+constexpr bool TUNE_FROM_MATERIAL = false;
 constexpr float TUNE_LR = 1.0;
 constexpr float TUNE_K = 0.0;
 

@@ -14,6 +14,7 @@ public:
     std::tuple<size_t, size_t, double> getCoefficients(const Board& board);
     static EvalParams getInitialParams();
     static EvalParams getMaterialParams();
+    static EvalParams getKParams();
     static void printEvalParams(const EvalParams& params, std::ostream& os);
     static void printEvalParamsExtracted(const EvalParams& params, std::ostream& os);
 private:
