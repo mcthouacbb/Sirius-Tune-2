@@ -137,7 +137,7 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
 {
     ThreadPool threadPool(TUNE_THREADS);
     EvalParams params = EvalFn::getInitialParams();
-    double kValue = TUNE_K <= 0 ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, params) : TUNE_K;
+    double kValue = TUNE_K <= 0 ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, EvalFn::getKParams()) : TUNE_K;
     std::cout << "Final k value: " << kValue << std::endl;
     outFile << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)

@@ -696,6 +696,24 @@ EvalParams EvalFn::getMaterialParams()
     return params;
 }
 
+EvalParams EvalFn::getKParams()
+{
+    constexpr PackedScore K_MATERIAL[6] = {
+        {67, 98}, {311, 409}, {330, 419}, {426, 746}, {860, 1403}, {0, 0}
+    };
+
+    EvalParams params = getInitialParams();
+    std::fill(params.begin(), params.end(), EvalParam{0, 0});
+
+    for (int i = 0; i < 6; i++)
+        for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
+        {
+            params[i * 64 + j].mg += K_MATERIAL[i].mg();
+            params[i * 64 + j].eg += K_MATERIAL[i].eg();
+        }
+    return params;
+}
+
 struct PrintState
 {
     const EvalParams& params;
