@@ -193,15 +193,16 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
 
             t1 = t2;
             EvalFn::printEvalParams(params, std::cout);
-            std::cout << std::endl;
+            std::cout << std::endl;/*
 
             EvalParams extracted = params;
             for (auto& param : extracted)
             {
                 param.mg = std::round(param.mg);
                 param.eg = std::round(param.eg);
-            }
-            EvalFn::printEvalParamsExtracted(extracted, outFile);
+            }*/
+            //EvalFn::printEvalParamsExtracted(extracted, outFile);
+            EvalFn::printEvalParamsExtracted(params, outFile);
             outFile << std::endl;
         }
     }

@@ -39,6 +39,9 @@ struct PieceTypeArray : public std::array<T, 6>
 
 using TraceElem = ColorArray<int>;
 
+#define TRACE_OFFSET(elem) (offsetof(Trace, elem) / sizeof(TraceElem))
+#define TRACE_SIZE(elem) (sizeof(Trace::elem) / sizeof(TraceElem))
+
 struct Trace
 {
     TraceElem psqt[6][64];
@@ -665,7 +668,7 @@ void printSingle(PrintState& state)
     if constexpr (ALIGN_SIZE == 0)
         state.ss << "S(" << param.mg << ", " << param.eg << ')';
     else
-        state.ss << "S(" << std::setw(ALIGN_SIZE) << param.mg << ", " << std::setw(ALIGN_SIZE) << param.eg << ')';
+        state.ss << "S(" << std::setw(ALIGN_SIZE) << static_cast<int>(param.mg) << ", " << std::setw(ALIGN_SIZE) << static_cast<int>(param.eg) << ')';
 }
 
 template<int ALIGN_SIZE>
@@ -866,39 +869,73 @@ void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
     os << state.ss.str() << std::endl;
 }
 
+std::array<int, 2> avgValue(EvalParams& params, int offset, int size)
+{
+    std::array<int, 2> avg = {};
+    for (int i = offset; i < offset + size; i++)
+    {
+        avg[0] += static_cast<int>(params[i].mg);
+        avg[1] += static_cast<int>(params[i].eg);
+    }
+    avg[0] /= size;
+    avg[1] /= size;
+    return avg;
+}
+
+void rebalance(std::array<int, 2> factor, std::array<int, 2>& materialValue, EvalParams& params, int offset, int size)
+{
+    materialValue[0] += factor[0];
+    materialValue[1] += factor[1];
+
+    for (int i = offset; i < offset + size; i++)
+    {
+        params[i].mg -= static_cast<double>(factor[0]);
+        params[i].eg -= static_cast<double>(factor[1]);
+    }
+}
+
 EvalParams extractMaterial(const EvalParams& params)
 {
     EvalParams rebalanced = params;
-    int material[2][6];
+    for (auto& elem : rebalanced)
+    {
+        elem.mg = std::round(elem.mg);
+        elem.eg = std::round(elem.eg);
+    }
+
+    std::array<std::array<int, 2>, 6> material = {};
+
+    // psqts
     for (int pce = 0; pce < 6; pce++)
     {
-        int begin = (pce == 0 ? 24 : 0), end = (pce == 0 ? 56 : 64);
-        int avgMG = 0, avgEG = 0;
-        for (int sq = begin; sq < end; sq++)
-        {
-            avgMG += static_cast<int>(params[pce * 64 + sq].mg);
-            avgEG += static_cast<int>(params[pce * 64 + sq].eg);
-        }
-
-        avgMG /= (end - begin);
-        avgEG /= (end - begin);
-
-        material[0][pce] = avgMG;
-        material[1][pce] = avgEG;
-
         if (pce == 0)
-            begin = 8;
-        for (int sq = begin; sq < end; sq++)
         {
-            rebalanced[pce * 64 + sq].mg -= static_cast<double>(avgMG);
-            rebalanced[pce * 64 + sq].eg -= static_cast<double>(avgEG);
+            auto avg = avgValue(rebalanced, TRACE_OFFSET(psqt[0]) + 24, TRACE_SIZE(psqt[0]) - 32);
+            rebalance(avg, material[pce], rebalanced, TRACE_OFFSET(psqt[0]) + 8, TRACE_SIZE(psqt[0]) - 16);
+        }
+        else
+        {
+            auto avg = avgValue(rebalanced, TRACE_OFFSET(psqt[pce]), TRACE_SIZE(psqt[pce]));
+            rebalance(avg, material[pce], rebalanced, TRACE_OFFSET(psqt[pce]), TRACE_SIZE(psqt[pce]));
         }
     }
+
+    // mobility
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[0]), 9), material[1], rebalanced, TRACE_OFFSET(mobility[0]), 9);
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[1]), 14), material[2], rebalanced, TRACE_OFFSET(mobility[1]), 14);
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[2]), 15), material[3], rebalanced, TRACE_OFFSET(mobility[2]), 15);
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[3]), 28), material[4], rebalanced, TRACE_OFFSET(mobility[3]), 28);
+
+    // king attacks
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks)), material[5], rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks));
+
+    // bishop pawns
+    rebalance(avgValue(rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns)), material[2], rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns));
 
     EvalParams extracted;
     for (int i = 0; i < 5; i++)
     {
-        extracted.push_back(EvalParam{static_cast<double>(material[0][i]), static_cast<double>(material[1][i])});
+        extracted.push_back(EvalParam{static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
     }
     extracted.insert(extracted.end(), rebalanced.begin(), rebalanced.end());
     return extracted;
