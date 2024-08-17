@@ -159,22 +159,27 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
 
     for (int epoch = 1; epoch <= TUNE_MAX_EPOCHS; epoch++)
     {
-        computeGradient(threadPool, dataset.positions, dataset.allCoefficients, kValue, params, gradient);
-
-        for (int i = 0; i < gradient.size(); i++)
+        for (int batch = 0; batch < dataset.positions.size() / BATCH_SIZE; batch++)
         {
-            momentum[i].mg = BETA1 * momentum[i].mg + (1 - BETA1) * gradient[i].mg;
-            momentum[i].eg = BETA1 * momentum[i].eg + (1 - BETA1) * gradient[i].eg;
+            std::span<const Position> batchPositions = {
+                dataset.positions.begin() + batch * BATCH_SIZE,
+                std::min<size_t>(BATCH_SIZE, dataset.positions.size() - batch * BATCH_SIZE)
+            };
+            computeGradient(threadPool, batchPositions, dataset.allCoefficients, kValue, params, gradient);
 
-            velocity[i].mg = BETA2 * velocity[i].mg + (1 - BETA2) * gradient[i].mg * gradient[i].mg;
-            velocity[i].eg = BETA2 * velocity[i].eg + (1 - BETA2) * gradient[i].eg * gradient[i].eg;
+            for (int i = 0; i < gradient.size(); i++)
+            {
+                momentum[i].mg = BETA1 * momentum[i].mg + (1 - BETA1) * gradient[i].mg;
+                momentum[i].eg = BETA1 * momentum[i].eg + (1 - BETA1) * gradient[i].eg;
 
-            params[i].mg -= LR * momentum[i].mg / (std::sqrt(velocity[i].mg) + EPSILON);
-            params[i].eg -= LR * momentum[i].eg / (std::sqrt(velocity[i].eg) + EPSILON);
+                velocity[i].mg = BETA2 * velocity[i].mg + (1 - BETA2) * gradient[i].mg * gradient[i].mg;
+                velocity[i].eg = BETA2 * velocity[i].eg + (1 - BETA2) * gradient[i].eg * gradient[i].eg;
+
+                params[i].mg -= LR * momentum[i].mg / (std::sqrt(velocity[i].mg) + EPSILON);
+                params[i].eg -= LR * momentum[i].eg / (std::sqrt(velocity[i].eg) + EPSILON);
+            }
         }
-
-
-        if (epoch % 100 == 0)
+        if (epoch % 10 == 0)
         {
             double error = calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue, params);
             std::cout << "Epoch: " << epoch << std::endl;
