@@ -139,5 +139,8 @@ constexpr PackedScore ROOK_OPEN[2] = {S(  25,    6), S(  16,    5)};
 
 constexpr PackedScore TEMPO = S(  32,   34);
 
+constexpr PackedScore COMPLEXITY_PAWNS = S(   0,    0);
+constexpr PackedScore COMPLEXITY_PASSERS = S(   0,    0);
+constexpr PackedScore COMPLEXITY_OFFSET = S(   0,    0);
 
 #undef S
