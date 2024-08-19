@@ -89,6 +89,7 @@ struct Trace
 
     TraceElem complexityPawns;
     TraceElem complexityPassers;
+    TraceElem complexityPawnsBothSides;
     TraceElem complexityOffset;
 
     double egScale;
@@ -475,13 +476,20 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
 PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStructure, PackedScore eval, Trace& trace)
 {
-    trace.complexityPawns[Color::WHITE] += board.pieces(PieceType::PAWN).popcount();
+    constexpr Bitboard KING_SIDE = FILE_A_BB | FILE_B_BB | FILE_C_BB | FILE_D_BB;
+    constexpr Bitboard QUEEN_SIDE = ~KING_SIDE;
+    Bitboard pawns = board.pieces(PieceType::PAWN);
+    bool pawnsBothSides = (pawns & KING_SIDE).any() && (pawns & QUEEN_SIDE).any();
+
+    trace.complexityPawns[Color::WHITE] += pawns.popcount();
     trace.complexityPassers[Color::WHITE] += pawnStructure.passedPawns.popcount();
+    trace.complexityPawnsBothSides[Color::WHITE] += pawnsBothSides;
     trace.complexityOffset[Color::WHITE] = 1;
 
     PackedScore complexity =
-        COMPLEXITY_PAWNS * board.pieces(PieceType::PAWN).popcount() +
+        COMPLEXITY_PAWNS * pawns.popcount() +
         COMPLEXITY_PASSERS * pawnStructure.passedPawns.popcount() +
+        COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides +
         COMPLEXITY_OFFSET;
 
     int mgSign = (eval.mg() > 0) - (eval.mg() < 0);
@@ -655,6 +663,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
 
     addCoefficient(trace.complexityPawns);
     addCoefficient(trace.complexityPassers);
+    addCoefficient(trace.complexityPawnsBothSides);
     addCoefficient(trace.complexityOffset);
 
     return {pos, m_Coefficients.size(), trace.egScale};
@@ -736,6 +745,7 @@ EvalParams EvalFn::getInitialParams()
 
     addEvalParam(params, COMPLEXITY_PAWNS, ParamType::COMPLEXITY);
     addEvalParam(params, COMPLEXITY_PASSERS, ParamType::COMPLEXITY);
+    addEvalParam(params, COMPLEXITY_PAWNS_BOTH_SIDES, ParamType::COMPLEXITY);
     addEvalParam(params, COMPLEXITY_OFFSET, ParamType::COMPLEXITY);
 
     return params;
@@ -1018,6 +1028,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore COMPLEXITY_PASSERS = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore COMPLEXITY_PAWNS_BOTH_SIDES = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
