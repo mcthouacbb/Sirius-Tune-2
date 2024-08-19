@@ -73,6 +73,10 @@ struct Trace
     TraceElem safeBishopCheck;
     TraceElem safeRookCheck;
     TraceElem safeQueenCheck;
+    TraceElem unsafeKnightCheck;
+    TraceElem unsafeBishopCheck;
+    TraceElem unsafeRookCheck;
+    TraceElem unsafeQueenCheck;
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks[14];
 
@@ -440,6 +444,12 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     TRACE_ADD(safeBishopCheck, (bishopChecks & safe).popcount());
     TRACE_ADD(safeRookCheck, (rookChecks & safe).popcount());
     TRACE_ADD(safeQueenCheck, (queenChecks & safe).popcount());
+
+    TRACE_ADD(unsafeKnightCheck, (knightChecks & ~safe).popcount());
+    TRACE_ADD(unsafeBishopCheck, (bishopChecks & ~safe).popcount());
+    TRACE_ADD(unsafeRookCheck, (rookChecks & ~safe).popcount());
+    TRACE_ADD(unsafeQueenCheck, (queenChecks & ~safe).popcount());
+
     int attackCount = std::min(evalData.attackCount[us], 13);
     TRACE_INC(kingAttacks[attackCount]);
 
@@ -447,6 +457,11 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += SAFE_BISHOP_CHECK * (bishopChecks & safe).popcount();
     eval += SAFE_ROOK_CHECK * (rookChecks & safe).popcount();
     eval += SAFE_QUEEN_CHECK * (queenChecks & safe).popcount();
+
+    eval += UNSAFE_KNIGHT_CHECK * (knightChecks & ~safe).popcount();
+    eval += UNSAFE_BISHOP_CHECK * (bishopChecks & ~safe).popcount();
+    eval += UNSAFE_ROOK_CHECK * (rookChecks & ~safe).popcount();
+    eval += UNSAFE_QUEEN_CHECK * (queenChecks & ~safe).popcount();
 
     eval += evalData.attackWeight[us];
     eval += KING_ATTACKS[attackCount];
@@ -598,6 +613,10 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.safeBishopCheck);
     addCoefficient(trace.safeRookCheck);
     addCoefficient(trace.safeQueenCheck);
+    addCoefficient(trace.unsafeKnightCheck);
+    addCoefficient(trace.unsafeBishopCheck);
+    addCoefficient(trace.unsafeRookCheck);
+    addCoefficient(trace.unsafeQueenCheck);
     addCoefficientArray(trace.kingAttackerWeight);
     addCoefficientArray(trace.kingAttacks);
 
@@ -671,6 +690,10 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, SAFE_BISHOP_CHECK);
     addEvalParam(params, SAFE_ROOK_CHECK);
     addEvalParam(params, SAFE_QUEEN_CHECK);
+    addEvalParam(params, UNSAFE_KNIGHT_CHECK);
+    addEvalParam(params, UNSAFE_BISHOP_CHECK);
+    addEvalParam(params, UNSAFE_ROOK_CHECK);
+    addEvalParam(params, UNSAFE_QUEEN_CHECK);
     addEvalParamArray(params, KING_ATTACKER_WEIGHT);
     addEvalParamArray(params, KING_ATTACKS);
 
@@ -899,6 +922,22 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore SAFE_QUEEN_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore UNSAFE_KNIGHT_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore UNSAFE_BISHOP_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore UNSAFE_ROOK_CHECK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore UNSAFE_QUEEN_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
