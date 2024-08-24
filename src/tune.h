@@ -7,13 +7,24 @@
 #include "dataset.h"
 #include "thread_pool.h"
 
+enum class ParamType
+{
+    NORMAL,
+    COMPLEXITY
+};
+
 struct EvalParam
 {
+    ParamType type;
     double mg;
     double eg;
 };
 // hack lol
-using Gradient = EvalParam;
+struct Gradient
+{
+    double mg;
+    double eg;
+};
 
 using Coeffs = std::span<const Coefficient>;
 using EvalParams = std::vector<EvalParam>;

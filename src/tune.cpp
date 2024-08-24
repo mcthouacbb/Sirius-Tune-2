@@ -10,18 +10,49 @@ double sigmoid(double x, double k)
     return 1.0 / (1 + exp(-x * k));
 }
 
-double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params)
+struct EvalTrace
 {
-    double mg = 0, eg = 0;
+    struct TraceElem
+    {
+        double mg;
+        double eg;
+    };
+    TraceElem normal;
+    TraceElem complexity;
+};
+
+double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params, EvalTrace& trace)
+{
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
         const EvalParam& param = params[coeff.index];
-        mg += param.mg * (coeff.white - coeff.black);
-        eg += param.eg * (coeff.white - coeff.black);
+        if (param.type == ParamType::NORMAL)
+        {
+            trace.normal.mg += param.mg * (coeff.white - coeff.black);
+            trace.normal.eg += param.eg * (coeff.white - coeff.black);
+        }
+        else if (param.type == ParamType::COMPLEXITY)
+        {
+            // complexity has no white/black separation, only white part is used
+            trace.complexity.mg += param.mg * coeff.white;
+            trace.complexity.eg += param.eg * coeff.white;
+        }
     }
 
+    double mg = 0, eg = 0;
+    mg += trace.normal.mg;
+    eg += trace.normal.eg;
+    mg += ((mg > 0) - (mg < 0)) * std::max(-std::abs(mg), trace.complexity.mg);
+    eg += ((eg > 0) - (eg < 0)) * std::max(-std::abs(eg), trace.complexity.eg);
+
     return (mg * pos.phase + eg * (1.0 - pos.phase));
+}
+
+double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params)
+{
+    EvalTrace trace = {};
+    return evaluate(pos, coefficients, params, trace);
 }
 
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
@@ -85,7 +116,8 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
 
 void updateGradient(const Position& pos, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
 {
-    double eval = evaluate(pos, coefficients, params);
+    EvalTrace trace = {};
+    double eval = evaluate(pos, coefficients, params, trace);
     double wdl = sigmoid(eval, kValue);
     double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
@@ -93,8 +125,21 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
-        gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
-        gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
+        ParamType type = params[coeff.index].type;
+        if (type == ParamType::NORMAL)
+        {
+            if (trace.complexity.mg >= -std::abs(trace.normal.mg))
+                gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
+            if (trace.complexity.eg >= -std::abs(trace.normal.eg))
+                gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
+        }
+        else if (type == ParamType::COMPLEXITY)
+        {
+            if (trace.complexity.mg >= -std::abs(trace.normal.mg) && trace.complexity.mg <= 0)
+                gradients[coeff.index].mg += mgBase * coeff.white * pos.egScale * ((trace.normal.mg > 0) - (trace.normal.mg < 0));
+            if (trace.complexity.eg >= -std::abs(trace.normal.eg))
+                gradients[coeff.index].eg += egBase * coeff.white * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
+        }
     }
 }
 
@@ -141,7 +186,8 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     std::cout << "Final k value: " << kValue << std::endl;
     outFile << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)
-        std::fill(params.begin(), params.end(), Gradient{0, 0});
+        for (auto& param : params)
+            param.mg = param.eg = 0;
     else if constexpr (TUNE_FROM_MATERIAL)
         params = EvalFn::getMaterialParams();
 

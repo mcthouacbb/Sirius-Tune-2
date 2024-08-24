@@ -87,6 +87,11 @@ struct Trace
 
     TraceElem tempo;
 
+    TraceElem complexityPawns;
+    TraceElem complexityPassers;
+    TraceElem complexityPawnsBothSides;
+    TraceElem complexityOffset;
+
     double egScale;
 };
 
@@ -469,6 +474,33 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     return eval;
 }
 
+PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStructure, PackedScore eval, Trace& trace)
+{
+    constexpr Bitboard KING_SIDE = FILE_A_BB | FILE_B_BB | FILE_C_BB | FILE_D_BB;
+    constexpr Bitboard QUEEN_SIDE = ~KING_SIDE;
+    Bitboard pawns = board.pieces(PieceType::PAWN);
+    bool pawnsBothSides = (pawns & KING_SIDE).any() && (pawns & QUEEN_SIDE).any();
+
+    trace.complexityPawns[Color::WHITE] += pawns.popcount();
+    trace.complexityPassers[Color::WHITE] += pawnStructure.passedPawns.popcount();
+    trace.complexityPawnsBothSides[Color::WHITE] += pawnsBothSides;
+    trace.complexityOffset[Color::WHITE] = 1;
+
+    PackedScore complexity =
+        COMPLEXITY_PAWNS * pawns.popcount() +
+        COMPLEXITY_PASSERS * pawnStructure.passedPawns.popcount() +
+        COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides +
+        COMPLEXITY_OFFSET;
+
+    int mgSign = (eval.mg() > 0) - (eval.mg() < 0);
+    int egSign = (eval.eg() > 0) - (eval.eg() < 0);
+
+    int mgComplexity = std::clamp(complexity.mg(), -std::abs(eval.mg()), 0);
+    int egComplexity = std::max(complexity.eg(), -std::abs(eval.eg()));
+
+    return PackedScore(mgSign * mgComplexity, egSign * egComplexity);
+}
+
 void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& pawnStructure)
 {
     Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
@@ -562,6 +594,8 @@ Trace getTrace(const Board& board)
     eval += evaluatePassedPawns<Color::WHITE>(board, pawnStructure, evalData, trace) - evaluatePassedPawns<Color::BLACK>(board, pawnStructure, evalData, trace);
     eval += evaluateThreats<Color::WHITE>(board, evalData, trace) - evaluateThreats<Color::BLACK>(board, evalData, trace);
 
+    eval += evaluateComplexity(board, pawnStructure, eval, trace);
+
     trace.tempo[board.sideToMove()]++;
 
     trace.egScale = evaluateScale(board, eval) / 128.0;
@@ -626,89 +660,102 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.openRook);
 
     addCoefficient(trace.tempo);
+
+    addCoefficient(trace.complexityPawns);
+    addCoefficient(trace.complexityPassers);
+    addCoefficient(trace.complexityPawnsBothSides);
+    addCoefficient(trace.complexityOffset);
+
     return {pos, m_Coefficients.size(), trace.egScale};
 }
 
 template<typename T>
-void addEvalParam(EvalParams& params, const T& t)
+void addEvalParam(EvalParams& params, const T& t, ParamType type)
 {
-    params.push_back({static_cast<double>(t.mg()), static_cast<double>(t.eg())});
+    params.push_back({type, static_cast<double>(t.mg()), static_cast<double>(t.eg())});
 }
 
 template<typename T>
-void addEvalParamArray(EvalParams& params, const T& t)
+void addEvalParamArray(EvalParams& params, const T& t, ParamType type)
 {
     for (auto param : t)
-        addEvalParam(params, param);
+        addEvalParam(params, param, type);
 }
 
 template<typename T>
-void addEvalParamArray2D(EvalParams& params, const T& t)
+void addEvalParamArray2D(EvalParams& params, const T& t, ParamType type)
 {
     for (auto& array : t)
-        addEvalParamArray(params, array);
+        addEvalParamArray(params, array, type);
 }
 
 template<typename T>
-void addEvalParamArray3D(EvalParams& params, const T& t)
+void addEvalParamArray3D(EvalParams& params, const T& t, ParamType type)
 {
     for (auto& array : t)
-        addEvalParamArray2D(params, array);
+        addEvalParamArray2D(params, array, type);
 }
 
 EvalParams EvalFn::getInitialParams()
 {
     EvalParams params;
-    addEvalParamArray2D(params, PSQT);
+    addEvalParamArray2D(params, PSQT, ParamType::NORMAL);
     for (int i = 0; i < 6; i++)
         for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
         {
             params[i * 64 + j].mg += MATERIAL[i].mg();
             params[i * 64 + j].eg += MATERIAL[i].eg();
         }
-    addEvalParamArray2D(params, MOBILITY);
+    addEvalParamArray2D(params, MOBILITY, ParamType::NORMAL);
 
-    addEvalParamArray(params, THREAT_BY_PAWN);
-    addEvalParamArray2D(params, THREAT_BY_KNIGHT);
-    addEvalParamArray2D(params, THREAT_BY_BISHOP);
-    addEvalParamArray2D(params, THREAT_BY_ROOK);
-    addEvalParamArray2D(params, THREAT_BY_QUEEN);
-    addEvalParamArray(params, THREAT_BY_KING);
-    addEvalParam(params, PUSH_THREAT);
+    addEvalParamArray(params, THREAT_BY_PAWN, ParamType::NORMAL);
+    addEvalParamArray2D(params, THREAT_BY_KNIGHT, ParamType::NORMAL);
+    addEvalParamArray2D(params, THREAT_BY_BISHOP, ParamType::NORMAL);
+    addEvalParamArray2D(params, THREAT_BY_ROOK, ParamType::NORMAL);
+    addEvalParamArray2D(params, THREAT_BY_QUEEN, ParamType::NORMAL);
+    addEvalParamArray(params, THREAT_BY_KING, ParamType::NORMAL);
+    addEvalParam(params, PUSH_THREAT, ParamType::NORMAL);
 
-    addEvalParamArray(params, ISOLATED_PAWN);
-    addEvalParamArray(params, PAWN_PHALANX);
-    addEvalParamArray(params, DEFENDED_PAWN);
+    addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
+    addEvalParamArray(params, PAWN_PHALANX, ParamType::NORMAL);
+    addEvalParamArray(params, DEFENDED_PAWN, ParamType::NORMAL);
 
-    addEvalParamArray3D(params, PASSED_PAWN);
-    addEvalParamArray(params, OUR_PASSER_PROXIMITY);
-    addEvalParamArray(params, THEIR_PASSER_PROXIMITY);
+    addEvalParamArray3D(params, PASSED_PAWN, ParamType::NORMAL);
+    addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
+    addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
 
-    addEvalParamArray2D(params, PAWN_STORM);
-    addEvalParamArray2D(params, PAWN_SHIELD);
-    addEvalParam(params, SAFE_KNIGHT_CHECK);
-    addEvalParam(params, SAFE_BISHOP_CHECK);
-    addEvalParam(params, SAFE_ROOK_CHECK);
-    addEvalParam(params, SAFE_QUEEN_CHECK);
-    addEvalParam(params, UNSAFE_KNIGHT_CHECK);
-    addEvalParam(params, UNSAFE_BISHOP_CHECK);
-    addEvalParam(params, UNSAFE_ROOK_CHECK);
-    addEvalParam(params, UNSAFE_QUEEN_CHECK);
-    addEvalParamArray(params, KING_ATTACKER_WEIGHT);
-    addEvalParamArray(params, KING_ATTACKS);
+    addEvalParamArray2D(params, PAWN_STORM, ParamType::NORMAL);
+    addEvalParamArray2D(params, PAWN_SHIELD, ParamType::NORMAL);
+    addEvalParam(params, SAFE_KNIGHT_CHECK, ParamType::NORMAL);
+    addEvalParam(params, SAFE_BISHOP_CHECK, ParamType::NORMAL);
+    addEvalParam(params, SAFE_ROOK_CHECK, ParamType::NORMAL);
+    addEvalParam(params, SAFE_QUEEN_CHECK, ParamType::NORMAL);
+    addEvalParam(params, UNSAFE_KNIGHT_CHECK, ParamType::NORMAL);
+    addEvalParam(params, UNSAFE_BISHOP_CHECK, ParamType::NORMAL);
+    addEvalParam(params, UNSAFE_ROOK_CHECK, ParamType::NORMAL);
+    addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::NORMAL);
+    addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::NORMAL);
+    addEvalParamArray(params, KING_ATTACKS, ParamType::NORMAL);
 
-    addEvalParam(params, KNIGHT_OUTPOST);
-    addEvalParamArray(params, BISHOP_PAWNS);
-    addEvalParam(params, BISHOP_PAIR);
-    addEvalParamArray(params, ROOK_OPEN);
-    addEvalParam(params, TEMPO);
+    addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
+    addEvalParamArray(params, BISHOP_PAWNS, ParamType::NORMAL);
+    addEvalParam(params, BISHOP_PAIR, ParamType::NORMAL);
+    addEvalParamArray(params, ROOK_OPEN, ParamType::NORMAL);
+    addEvalParam(params, TEMPO, ParamType::NORMAL);
+
+    addEvalParam(params, COMPLEXITY_PAWNS, ParamType::COMPLEXITY);
+    addEvalParam(params, COMPLEXITY_PASSERS, ParamType::COMPLEXITY);
+    addEvalParam(params, COMPLEXITY_PAWNS_BOTH_SIDES, ParamType::COMPLEXITY);
+    addEvalParam(params, COMPLEXITY_OFFSET, ParamType::COMPLEXITY);
+
     return params;
 }
 
 EvalParams EvalFn::getMaterialParams()
 {
     EvalParams params = getInitialParams();
-    std::fill(params.begin(), params.end(), EvalParam{0, 0});
+    for (auto& param : params)
+        param.mg = param.eg = 0;
 
     for (int i = 0; i < 6; i++)
         for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
@@ -726,7 +773,8 @@ EvalParams EvalFn::getKParams()
     };
 
     EvalParams params = getInitialParams();
-    std::fill(params.begin(), params.end(), EvalParam{0, 0});
+    for (auto& param : params)
+        param.mg = param.eg = 0;
 
     for (int i = 0; i < 6; i++)
         for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
@@ -972,6 +1020,24 @@ void printRestParams(PrintState& state)
     state.ss << "constexpr PackedScore TEMPO = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
+
+    state.ss << '\n';
+
+    state.ss << "constexpr PackedScore COMPLEXITY_PAWNS = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore COMPLEXITY_PASSERS = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore COMPLEXITY_PAWNS_BOTH_SIDES = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore COMPLEXITY_OFFSET = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
 }
 
 void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
@@ -1049,7 +1115,7 @@ EvalParams extractMaterial(const EvalParams& params)
     EvalParams extracted;
     for (int i = 0; i < 5; i++)
     {
-        extracted.push_back(EvalParam{static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
+        extracted.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
     }
     extracted.insert(extracted.end(), rebalanced.begin(), rebalanced.end());
     return extracted;
