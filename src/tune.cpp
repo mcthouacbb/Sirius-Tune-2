@@ -136,9 +136,9 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
         else if (type == ParamType::COMPLEXITY)
         {
             if (trace.complexity.mg >= -std::abs(trace.normal.mg) && trace.complexity.mg <= 0)
-                gradients[coeff.index].mg += mgBase * coeff.white * pos.egScale * ((trace.normal.mg > 0) - (trace.normal.mg < 0));
+                gradients[coeff.index].mg += mgBase * coeff.white * ((trace.normal.mg > 0) - (trace.normal.mg < 0));
             if (trace.complexity.eg >= -std::abs(trace.normal.eg))
-                gradients[coeff.index].eg += egBase * coeff.white * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
+                gradients[coeff.index].eg += egBase * coeff.white * pos.egScale * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
     }
 }
