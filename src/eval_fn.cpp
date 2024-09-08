@@ -80,6 +80,7 @@ struct Trace
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks[14];
 
+    TraceElem minorBehindPawn;
     TraceElem knightOutpost;
     TraceElem bishopPawns[7];
     TraceElem bishopPair;
@@ -179,6 +180,17 @@ PackedScore evaluateRookOpen(const Board& board, Trace& trace)
         }
     }
     return eval;
+}
+
+template<Color us>
+PackedScore evaluateMinorBehindPawn(const Board& board, Trace& trace)
+{
+    Bitboard pawns = board.pieces(PieceType::PAWN);
+    Bitboard minors = board.pieces(us, PieceType::KNIGHT) | board.pieces(us, PieceType::BISHOP);
+
+    Bitboard shielded = minors & (us == Color::WHITE ? pawns.south() : pawns.north());
+    TRACE_ADD(minorBehindPawn, shielded.popcount());
+    return MINOR_BEHIND_PAWN * shielded.popcount();
 }
 
 template<Color us, PieceType piece>
@@ -588,6 +600,7 @@ Trace getTrace(const Board& board)
     eval += evaluateKnightOutposts<Color::WHITE>(board, pawnStructure, trace) - evaluateKnightOutposts<Color::BLACK>(board, pawnStructure, trace);
     eval += evaluateBishopPawns<Color::WHITE>(board, trace) - evaluateBishopPawns<Color::BLACK>(board, trace);
     eval += evaluateRookOpen<Color::WHITE>(board, trace) - evaluateRookOpen<Color::BLACK>(board, trace);
+    eval += evaluateMinorBehindPawn<Color::WHITE>(board, trace) - evaluateMinorBehindPawn<Color::BLACK>(board, trace);
 
     eval += evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
     eval += evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace) - evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
@@ -658,6 +671,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.kingAttackerWeight);
     addCoefficientArray(trace.kingAttacks);
 
+    addCoefficient(trace.minorBehindPawn);
     addCoefficient(trace.knightOutpost);
     addCoefficientArray(trace.bishopPawns);
     addCoefficient(trace.bishopPair);
@@ -742,6 +756,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::NORMAL);
     addEvalParamArray(params, KING_ATTACKS, ParamType::NORMAL);
 
+    addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
     addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
     addEvalParamArray(params, BISHOP_PAWNS, ParamType::NORMAL);
     addEvalParam(params, BISHOP_PAIR, ParamType::NORMAL);
@@ -1004,6 +1019,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << '\n';
+
+    state.ss << "constexpr PackedScore MINOR_BEHIND_PAWN = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
 
     state.ss << "constexpr PackedScore KNIGHT_OUTPOST = ";
     printSingle<ALIGN_SIZE>(state);
