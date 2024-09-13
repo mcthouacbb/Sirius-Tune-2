@@ -67,8 +67,8 @@ struct Trace
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
 
-    TraceElem pawnStorm[3][8];
-    TraceElem pawnShield[3][8];
+    TraceElem pawnStorm[4][8];
+    TraceElem pawnShield[4][8];
     TraceElem safeKnightCheck;
     TraceElem safeBishopCheck;
     TraceElem safeRookCheck;
@@ -408,30 +408,27 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
 }
 
 template<Color us>
-PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, Square theirKing, Trace& trace)
+PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, Trace& trace)
 {
+    constexpr Color them = ~us;
+
     PackedScore eval{0, 0};
-    uint32_t kingFile = theirKing.file();
+    int edgeDist = std::min(file, 7 - file);
     {
         Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
-        // 4 = e file
-        int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
-
-        int rankDist = filePawns.any() ?
-            std::abs((us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).rank() - theirKing.rank()) :
-            7;
-        eval += PAWN_STORM[idx][rankDist];
-        TRACE_INC(pawnStorm[idx][rankDist]);
+        int rank = filePawns.any() ?
+            (us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>() :
+            0;
+        eval += PAWN_STORM[edgeDist][rank];
+        TRACE_INC(pawnStorm[edgeDist][rank]);
     }
     {
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
-        // 4 = e file
-        int idx = (kingFile == file) ? 1 : (kingFile >= 4) == (kingFile < file) ? 0 : 2;
-        int rankDist = filePawns.any() ?
-            std::abs((us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).rank() - theirKing.rank()) :
-            7;
-        eval += PAWN_SHIELD[idx][rankDist];
-        TRACE_INC(pawnShield[idx][rankDist]);
+        int rank = filePawns.any() ?
+            (us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>() :
+            0;
+        eval += PAWN_SHIELD[edgeDist][rank];
+        TRACE_INC(pawnShield[edgeDist][rank]);
     }
 
     return eval;
@@ -448,8 +445,10 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
     PackedScore eval{0, 0};
 
-    for (uint32_t file = 0; file < 8; file++)
-        eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, theirKing, trace);
+    uint32_t leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
+    uint32_t rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
+    for (uint32_t file = leftFile; file <= rightFile; file++)
+        eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
 
     Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
     Bitboard bishopCheckSquares = attacks::bishopAttacks(theirKing, board.allPieces());
@@ -973,12 +972,12 @@ void printRestParams(PrintState& state)
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore PAWN_STORM[3][8] = ";
-    printArray2D<ALIGN_SIZE>(state, 3, 8);
+    state.ss << "constexpr PackedScore PAWN_STORM[4][8] = ";
+    printArray2D<ALIGN_SIZE>(state, 4, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_SHIELD[3][8] = ";
-    printArray2D<ALIGN_SIZE>(state, 3, 8);
+    state.ss << "constexpr PackedScore PAWN_SHIELD[4][8] = ";
+    printArray2D<ALIGN_SIZE>(state, 4, 8);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore SAFE_KNIGHT_CHECK = ";
