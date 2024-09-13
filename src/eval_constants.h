@@ -142,10 +142,10 @@ constexpr PackedScore ROOK_OPEN[2] = {S(  24,    3), S(  14,    3)};
 
 constexpr PackedScore TEMPO = S(  29,   36);
 
-constexpr PackedScore COMPLEXITY_PAWNS = S(   1,    8);
-constexpr PackedScore COMPLEXITY_PASSERS = S(  -1,    1);
+constexpr PackedScore COMPLEXITY_PAWNS = S(   0,    8);
+constexpr PackedScore COMPLEXITY_PASSERS = S(  0,    1);
 constexpr PackedScore COMPLEXITY_PAWNS_BOTH_SIDES = S(   1,   70);
 constexpr PackedScore COMPLEXITY_PAWN_ENDGAME = S(   0,   62);
-constexpr PackedScore COMPLEXITY_OFFSET = S(   1, -131);
+constexpr PackedScore COMPLEXITY_OFFSET = S(   0, -131);
 
 #undef S

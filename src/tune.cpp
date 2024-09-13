@@ -35,7 +35,6 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
         else if (param.type == ParamType::COMPLEXITY)
         {
             // complexity has no white/black separation, only white part is used
-            trace.complexity.mg += param.mg * coeff.white;
             trace.complexity.eg += param.eg * coeff.white;
         }
     }
@@ -43,7 +42,6 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     double mg = 0, eg = 0;
     mg += trace.normal.mg;
     eg += trace.normal.eg;
-    mg += ((mg > 0) - (mg < 0)) * std::max(-std::abs(mg), trace.complexity.mg);
     eg += ((eg > 0) - (eg < 0)) * std::max(-std::abs(eg), trace.complexity.eg);
 
     return (mg * pos.phase + eg * (1.0 - pos.phase));
@@ -135,8 +133,6 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
         }
         else if (type == ParamType::COMPLEXITY)
         {
-            if (trace.complexity.mg >= -std::abs(trace.normal.mg) && trace.complexity.mg <= 0)
-                gradients[coeff.index].mg += mgBase * coeff.white * ((trace.normal.mg > 0) - (trace.normal.mg < 0));
             if (trace.complexity.eg >= -std::abs(trace.normal.eg))
                 gradients[coeff.index].eg += egBase * coeff.white * pos.egScale * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
