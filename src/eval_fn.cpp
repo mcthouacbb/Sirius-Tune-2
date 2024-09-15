@@ -67,7 +67,7 @@ struct Trace
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
 
-    TraceElem pawnStorm[4][8];
+    TraceElem pawnStorm[2][4][8];
     TraceElem pawnShield[4][8];
     TraceElem safeKnightCheck;
     TraceElem safeBishopCheck;
@@ -419,8 +419,9 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
         int rank = filePawns.any() ?
             (us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>() :
             0;
-        eval += PAWN_STORM[edgeDist][rank];
-        TRACE_INC(pawnStorm[edgeDist][rank]);
+        bool blocked = (theirPawns & Bitboard::fromSquare(Square(rank + attacks::pawnPushOffset<us>(), file))).any();
+        eval += PAWN_STORM[blocked][edgeDist][rank];
+        TRACE_INC(pawnStorm[blocked][edgeDist][rank]);
     }
     {
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
@@ -658,7 +659,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.ourPasserProximity);
     addCoefficientArray(trace.theirPasserProximity);
 
-    addCoefficientArray2D(trace.pawnStorm);
+    addCoefficientArray3D(trace.pawnStorm);
     addCoefficientArray2D(trace.pawnShield);
     addCoefficient(trace.safeKnightCheck);
     addCoefficient(trace.safeBishopCheck);
@@ -743,7 +744,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
 
-    addEvalParamArray2D(params, PAWN_STORM, ParamType::NORMAL);
+    addEvalParamArray3D(params, PAWN_STORM, ParamType::NORMAL);
     addEvalParamArray2D(params, PAWN_SHIELD, ParamType::NORMAL);
     addEvalParam(params, SAFE_KNIGHT_CHECK, ParamType::NORMAL);
     addEvalParam(params, SAFE_BISHOP_CHECK, ParamType::NORMAL);
@@ -970,8 +971,8 @@ void printRestParams(PrintState& state)
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore PAWN_STORM[4][8] = ";
-    printArray2D<ALIGN_SIZE>(state, 4, 8);
+    state.ss << "constexpr PackedScore PAWN_STORM[2][4][8] = ";
+    printArray3D<ALIGN_SIZE>(state, 2, 4, 8);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PAWN_SHIELD[4][8] = ";
