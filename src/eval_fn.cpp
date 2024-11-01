@@ -249,7 +249,9 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 template<Color us>
 PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
+    constexpr Color them = ~us;
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
     PackedScore eval{0, 0};
 
@@ -257,10 +259,13 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
     while (pawns.any())
     {
         Square sq = pawns.poplsb();
+        Bitboard attacks = attacks::pawnAttacks(us, sq);
+        Bitboard threats = attacks & theirPawns;
+
         if (board.isPassedPawn(sq))
             pawnStructure.passedPawns |= Bitboard::fromSquare(sq);
 
-        if (board.isIsolatedPawn(sq))
+        if (threats.empty() && board.isIsolatedPawn(sq))
         {
             eval += ISOLATED_PAWN[sq.file()];
             TRACE_INC(isolatedPawn[sq.file()]);
