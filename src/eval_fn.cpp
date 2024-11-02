@@ -538,6 +538,10 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
     evalData.attackedBy2[Color::WHITE] = evalData.attacked[Color::WHITE] & whiteKingAtks;
     evalData.attacked[Color::WHITE] |= whiteKingAtks;
     evalData.kingRing[Color::WHITE] = (whiteKingAtks | whiteKingAtks.north()) & ~Bitboard::fromSquare(whiteKing);
+    if ((Bitboard::fromSquare(whiteKing) & FILE_H_BB).any())
+        evalData.kingRing[Color::WHITE] |= evalData.kingRing[Color::WHITE].west();
+    if ((Bitboard::fromSquare(whiteKing) & FILE_A_BB).any())
+        evalData.kingRing[Color::WHITE] |= evalData.kingRing[Color::WHITE].east();
 
     evalData.mobilityArea[Color::BLACK] = ~pawnStructure.pawnAttacks[Color::WHITE];
     evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::BLACK];
@@ -547,6 +551,10 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
     evalData.attackedBy2[Color::BLACK] = evalData.attacked[Color::BLACK] & blackKingAtks;
     evalData.attacked[Color::BLACK] |= blackKingAtks;
     evalData.kingRing[Color::BLACK] = (blackKingAtks | blackKingAtks.south()) & ~Bitboard::fromSquare(blackKing);
+    if ((Bitboard::fromSquare(blackKing) & FILE_H_BB).any())
+        evalData.kingRing[Color::BLACK] |= evalData.kingRing[Color::BLACK].west();
+    if ((Bitboard::fromSquare(blackKing) & FILE_A_BB).any())
+        evalData.kingRing[Color::BLACK] |= evalData.kingRing[Color::BLACK].east();
 }
 
 PackedScore evaluatePsqt(const Board& board, Trace& trace)
