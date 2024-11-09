@@ -58,6 +58,7 @@ struct Trace
     TraceElem threatByQueen[2][6];
     TraceElem threatByKing[6];
     TraceElem pushThreat;
+    TraceElem restrictedPiece;
 
     TraceElem isolatedPawn[8];
     TraceElem pawnPhalanx[8];
@@ -409,6 +410,13 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     eval += PUSH_THREAT * pushThreats.popcount();
     TRACE_ADD(pushThreat, pushThreats.popcount());
 
+    Bitboard restricted =
+        evalData.attacked[them] &
+        ~defendedBB &
+        evalData.attacked[us];
+    eval += RESTRICTED_PIECE * restricted.popcount();
+    TRACE_ADD(restrictedPiece, restricted.popcount());
+
     return eval;
 }
 
@@ -663,6 +671,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray2D(trace.threatByQueen);
     addCoefficientArray(trace.threatByKing);
     addCoefficient(trace.pushThreat);
+    addCoefficient(trace.restrictedPiece);
 
     addCoefficientArray(trace.isolatedPawn);
     addCoefficientArray(trace.pawnPhalanx);
@@ -748,6 +757,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray2D(params, THREAT_BY_QUEEN, ParamType::NORMAL);
     addEvalParamArray(params, THREAT_BY_KING, ParamType::NORMAL);
     addEvalParam(params, PUSH_THREAT, ParamType::NORMAL);
+    addEvalParam(params, RESTRICTED_PIECE, ParamType::NORMAL);
 
     addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, PAWN_PHALANX, ParamType::NORMAL);
@@ -951,6 +961,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PUSH_THREAT = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore RESTRICTED_PIECE = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
