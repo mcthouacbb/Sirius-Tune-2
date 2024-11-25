@@ -60,6 +60,7 @@ struct Trace
     TraceElem pushThreat;
 
     TraceElem isolatedPawn[8];
+    TraceElem doubledPawn[8];
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
 
@@ -261,9 +262,18 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
         Square sq = pawns.poplsb();
         Bitboard attacks = attacks::pawnAttacks(us, sq);
         Bitboard threats = attacks & theirPawns;
+        Bitboard pushThreats = attacks::pawnPushes<us>(threats);
+
+        bool doubled = ourPawns.has(sq + attacks::pawnPushOffset<us>());
 
         if (board.isPassedPawn(sq))
             pawnStructure.passedPawns |= Bitboard::fromSquare(sq);
+
+        if (doubled && threats.empty() && pushThreats.empty())
+        {
+            eval += DOUBLED_PAWN[sq.file()];
+            TRACE_INC(doubledPawn[sq.file()]);
+        }
 
         if (threats.empty() && board.isIsolatedPawn(sq))
         {
@@ -665,6 +675,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.pushThreat);
 
     addCoefficientArray(trace.isolatedPawn);
+    addCoefficientArray(trace.doubledPawn);
     addCoefficientArray(trace.pawnPhalanx);
     addCoefficientArray(trace.defendedPawn);
 
@@ -750,6 +761,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, PUSH_THREAT, ParamType::NORMAL);
 
     addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
+    addEvalParamArray(params, DOUBLED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, PAWN_PHALANX, ParamType::NORMAL);
     addEvalParamArray(params, DEFENDED_PAWN, ParamType::NORMAL);
 
@@ -957,6 +969,10 @@ void printRestParams(PrintState& state)
     state.ss << '\n';
 
     state.ss << "constexpr PackedScore ISOLATED_PAWN[8] = ";
+    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore DOUBLED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
