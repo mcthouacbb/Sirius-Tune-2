@@ -484,7 +484,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     Bitboard rookChecks = evalData.attackedBy[us][PieceType::ROOK] & rookCheckSquares;
     Bitboard queenChecks = evalData.attackedBy[us][PieceType::QUEEN] & (bishopCheckSquares | rookCheckSquares);
 
-    Bitboard weak = ~evalData.attacked[them] & (~evalData.attackedBy2[them] & evalData.attackedBy[them][PieceType::KING]);
+    Bitboard weak = ~evalData.attacked[them] | (~evalData.attackedBy2[them] & evalData.attackedBy[them][PieceType::KING]);
     Bitboard safe = ~board.allPieces() & ~evalData.attacked[them] | (weak & evalData.attackedBy2[us]);
 
     TRACE_ADD(safeKnightCheck, (knightChecks & safe).popcount());
