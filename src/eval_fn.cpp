@@ -81,7 +81,7 @@ struct Trace
     TraceElem unsafeQueenCheck;
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks[14];
-    TraceElem weakKingRing[9];
+    TraceElem weakKingRing[17];
 
     TraceElem minorBehindPawn;
     TraceElem knightOutpost;
@@ -501,7 +501,10 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     int attackCount = std::min(evalData.attackCount[us], 13);
     TRACE_INC(kingAttacks[attackCount]);
 
-    int weakSquares = std::min((evalData.kingRing[them] & weak).popcount(), 8u);
+    Bitboard weakKingRing = (evalData.kingRing[them] & weak);
+    Bitboard weakAttacked = weakKingRing & evalData.attacked[us];
+    Bitboard weakAttacked2 = weakAttacked & evalData.attackedBy2[us];
+    int weakSquares = std::min(weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount(), 16u);
     TRACE_INC(weakKingRing[weakSquares]);
 
     eval += SAFE_KNIGHT_CHECK * (knightChecks & safe).popcount();
@@ -1073,8 +1076,8 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 14);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore WEAK_KING_RING[9] = ";
-    printArray<ALIGN_SIZE>(state, 9);
+    state.ss << "constexpr PackedScore WEAK_KING_RING[17] = ";
+    printArray<ALIGN_SIZE>(state, 17);
     state.ss << ";\n";
 
     state.ss << '\n';
