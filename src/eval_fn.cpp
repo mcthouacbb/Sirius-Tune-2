@@ -81,6 +81,7 @@ struct Trace
     TraceElem unsafeQueenCheck;
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks[14];
+    TraceElem weakKingRing[17];
 
     TraceElem minorBehindPawn;
     TraceElem knightOutpost;
@@ -500,6 +501,12 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     int attackCount = std::min(evalData.attackCount[us], 13);
     TRACE_INC(kingAttacks[attackCount]);
 
+    Bitboard weakKingRing = (evalData.kingRing[them] & weak);
+    Bitboard weakAttacked = weakKingRing & evalData.attacked[us];
+    Bitboard weakAttacked2 = weakAttacked & evalData.attackedBy2[us];
+    int weakSquares = std::min(weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount(), 16u);
+    TRACE_INC(weakKingRing[weakSquares]);
+
     eval += SAFE_KNIGHT_CHECK * (knightChecks & safe).popcount();
     eval += SAFE_BISHOP_CHECK * (bishopChecks & safe).popcount();
     eval += SAFE_ROOK_CHECK * (rookChecks & safe).popcount();
@@ -512,6 +519,8 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
     eval += evalData.attackWeight[us];
     eval += KING_ATTACKS[attackCount];
+
+    eval += WEAK_KING_RING[weakSquares];
 
     return eval;
 }
@@ -707,6 +716,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.unsafeQueenCheck);
     addCoefficientArray(trace.kingAttackerWeight);
     addCoefficientArray(trace.kingAttacks);
+    addCoefficientArray(trace.weakKingRing);
 
     addCoefficient(trace.minorBehindPawn);
     addCoefficient(trace.knightOutpost);
@@ -794,6 +804,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::NORMAL);
     addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::NORMAL);
     addEvalParamArray(params, KING_ATTACKS, ParamType::NORMAL);
+    addEvalParamArray(params, WEAK_KING_RING, ParamType::NORMAL);
 
     addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
     addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
@@ -1063,6 +1074,10 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr PackedScore KING_ATTACKS[14] = ";
     printArray<ALIGN_SIZE>(state, 14);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore WEAK_KING_RING[17] = ";
+    printArray<ALIGN_SIZE>(state, 17);
     state.ss << ";\n";
 
     state.ss << '\n';
