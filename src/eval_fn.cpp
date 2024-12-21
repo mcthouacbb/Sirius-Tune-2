@@ -87,6 +87,7 @@ struct Trace
     TraceElem knightOutpost;
     TraceElem bishopPawns[7];
     TraceElem bishopPair;
+    TraceElem longDiagBishop;
     TraceElem openRook[2];
 
     TraceElem tempo;
@@ -221,6 +222,7 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::ROOK);
 
     Bitboard outpostSquares = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
+    constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
 
     while (pieces.any())
     {
@@ -241,6 +243,12 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
             evalData.attackWeight[us] += KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)];
             TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
             evalData.attackCount[us] += kingRingAtks.popcount();
+        }
+
+        if (piece == PieceType::BISHOP && (attacks & CENTER_SQUARES).multiple())
+        {
+            eval += LONG_DIAG_BISHOP;
+            TRACE_INC(longDiagBishop);
         }
     }
 
@@ -722,6 +730,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.knightOutpost);
     addCoefficientArray(trace.bishopPawns);
     addCoefficient(trace.bishopPair);
+    addCoefficient(trace.longDiagBishop);
     addCoefficientArray(trace.openRook);
 
     addCoefficient(trace.tempo);
@@ -810,6 +819,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
     addEvalParamArray(params, BISHOP_PAWNS, ParamType::NORMAL);
     addEvalParam(params, BISHOP_PAIR, ParamType::NORMAL);
+    addEvalParam(params, LONG_DIAG_BISHOP, ParamType::NORMAL);
     addEvalParamArray(params, ROOK_OPEN, ParamType::NORMAL);
     addEvalParam(params, TEMPO, ParamType::NORMAL);
 
@@ -1095,6 +1105,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore BISHOP_PAIR = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore LONG_DIAG_BISHOP = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
