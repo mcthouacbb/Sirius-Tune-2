@@ -201,6 +201,8 @@ template<Color us, PieceType piece>
 PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
+    constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
+
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
     Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
@@ -222,7 +224,6 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::ROOK);
 
     Bitboard outpostSquares = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
-    constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
 
     while (pieces.any())
     {
