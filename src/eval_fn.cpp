@@ -64,6 +64,7 @@ struct Trace
     TraceElem backwardsPawn[8];
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
+    TraceElem candidatePasser[2][8];
 
     TraceElem passedPawn[2][2][8];
     TraceElem ourPasserProximity[8];
@@ -273,9 +274,12 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
         Square sq = pawns.poplsb();
         Square push = sq + attacks::pawnPushOffset<us>();
         Bitboard attacks = attacks::pawnAttacks(us, sq);
+        Bitboard support = attacks::passedPawnMask(them, push) & attacks::isolatedPawnMask(sq) & ourPawns;
         Bitboard threats = attacks & theirPawns;
         Bitboard pushThreats = attacks::pawnPushes<us>(attacks) & theirPawns;
-        Bitboard support = attacks::passedPawnMask(them, push) & attacks::isolatedPawnMask(sq) & ourPawns;
+        Bitboard defenders = attacks::pawnAttacks(them, sq) & ourPawns;
+        Bitboard phalanx = attacks::pawnAttacks(them, push) & ourPawns;
+        Bitboard stoppers = attacks::passedPawnMask(us, sq) & theirPawns;
 
         bool blocked = theirPawns.has(push);
         bool doubled = ourPawns.has(push);
@@ -283,6 +287,12 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
 
         if (board.isPassedPawn(sq))
             pawnStructure.passedPawns |= Bitboard::fromSquare(sq);
+        else if (stoppers == (pushThreats | threats) && phalanx.popcount() >= pushThreats.popcount())
+        {
+            bool defended = defenders.popcount() >= threats.popcount();
+            eval += CANDIDATE_PASSER[defended][sq.relativeRank<us>()];
+            TRACE_INC(candidatePasser[defended][sq.relativeRank<us>()]);
+        }
 
         if (doubled && threats.empty())
         {
@@ -708,6 +718,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.backwardsPawn);
     addCoefficientArray(trace.pawnPhalanx);
     addCoefficientArray(trace.defendedPawn);
+    addCoefficientArray2D(trace.candidatePasser);
 
     addCoefficientArray3D(trace.passedPawn);
     addCoefficientArray(trace.ourPasserProximity);
@@ -797,6 +808,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, BACKWARDS_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, PAWN_PHALANX, ParamType::NORMAL);
     addEvalParamArray(params, DEFENDED_PAWN, ParamType::NORMAL);
+    addEvalParamArray2D(params, CANDIDATE_PASSER, ParamType::NORMAL);
 
     addEvalParamArray3D(params, PASSED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
@@ -1021,6 +1033,10 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr PackedScore DEFENDED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore CANDIDATE_PASSER[2][8] = ";
+    printArray2D<ALIGN_SIZE>(state, 2, 8);
     state.ss << ";\n";
 
     state.ss << '\n';
