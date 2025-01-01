@@ -576,10 +576,12 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
 {
     Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
     Bitboard blackPawns = board.pieces(Color::BLACK, PieceType::PAWN);
+    Bitboard blockedWhitePawns = whitePawns & blackPawns.south();
+    Bitboard blockedBlackPawns = blackPawns & whitePawns.north();
     Square whiteKing = board.kingSq(Color::WHITE);
     Square blackKing = board.kingSq(Color::BLACK);
 
-    evalData.mobilityArea[Color::WHITE] = ~pawnStructure.pawnAttacks[Color::BLACK];
+    evalData.mobilityArea[Color::WHITE] = ~pawnStructure.pawnAttacks[Color::BLACK] & ~Bitboard::fromSquare(whiteKing) & ~blockedWhitePawns;
     evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::WHITE];
 
     Bitboard whiteKingAtks = attacks::kingAttacks(whiteKing);
@@ -592,7 +594,7 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
     if ((Bitboard::fromSquare(whiteKing) & FILE_A_BB).any())
         evalData.kingRing[Color::WHITE] |= evalData.kingRing[Color::WHITE].east();
 
-    evalData.mobilityArea[Color::BLACK] = ~pawnStructure.pawnAttacks[Color::WHITE];
+    evalData.mobilityArea[Color::BLACK] = ~pawnStructure.pawnAttacks[Color::WHITE] & ~Bitboard::fromSquare(blackKing) & ~blockedBlackPawns;
     evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::BLACK];
 
     Bitboard blackKingAtks = attacks::kingAttacks(blackKing);
