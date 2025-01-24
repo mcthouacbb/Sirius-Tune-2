@@ -576,8 +576,8 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
 {
     Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
     Bitboard blackPawns = board.pieces(Color::BLACK, PieceType::PAWN);
-    Bitboard blockedWhitePawns = whitePawns & blackPawns.south();
-    Bitboard blockedBlackPawns = blackPawns & whitePawns.north();
+    Bitboard blockedWhitePawns = whitePawns & board.allPieces().south();
+    Bitboard blockedBlackPawns = blackPawns & board.allPieces().north();
     Square whiteKing = board.kingSq(Color::WHITE);
     Square blackKing = board.kingSq(Color::BLACK);
 
