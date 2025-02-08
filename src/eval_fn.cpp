@@ -544,15 +544,15 @@ template<Color us>
 void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& pawnStructure)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
     Bitboard blockedPawns = ourPawns & attacks::pawnPushes<them>(board.allPieces());
     Square ourKing = board.kingSq(us);
 
     evalData.mobilityArea[us] = ~pawnStructure.pawnAttacks[them] & ~Bitboard::fromSquare(ourKing) & ~blockedPawns;
-    evalData.attacked[us] = evalData.attackedBy[us][PAWN] = pawnStructure.pawnAttacks[us];
+    evalData.attacked[us] = evalData.attackedBy[us][PieceType::PAWN] = pawnStructure.pawnAttacks[us];
 
     Bitboard ourKingAtks = attacks::kingAttacks(ourKing);
-    evalData.attackedBy[us][KING] = ourKingAtks;
+    evalData.attackedBy[us][PieceType::KING] = ourKingAtks;
     evalData.attackedBy2[us] = evalData.attacked[us] & ourKingAtks;
     evalData.attacked[us] |= ourKingAtks;
     evalData.kingRing[us] = (ourKingAtks | attacks::pawnPushes<us>(ourKingAtks)) & ~Bitboard::fromSquare(ourKing);
