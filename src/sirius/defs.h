@@ -120,8 +120,13 @@ public:
     constexpr int file() const;
     template<Color c>
     constexpr int relativeRank() const;
+    constexpr int relativeRank(Color c) const;
+
+    constexpr bool darkSquare() const;
+    constexpr bool lightSquare() const;
 
     static constexpr int chebyshev(Square a, Square b);
+    static constexpr int manhattan(Square a, Square b);
     static constexpr Square average(Square a, Square b);
 private:
     uint8_t m_Value;
@@ -174,19 +179,10 @@ constexpr int Square::operator-(Square other) const
     return value() - other.value();
 }
 
-// for some reason msvc complains that there is unreachable code here
-// even though there clearly isn't
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4702)
-#endif
 constexpr int Square::value() const
 {
     return static_cast<int>(m_Value);
 }
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 constexpr int Square::rank() const
 {
@@ -206,9 +202,41 @@ constexpr int Square::relativeRank() const
     return rank();
 }
 
+constexpr int Square::relativeRank(Color c) const
+{
+    if (c == Color::BLACK)
+        return rank() ^ 7;
+    return rank();
+}
+
+constexpr bool Square::darkSquare() const
+{
+    return (rank() + file()) % 2 == 0;
+}
+
+constexpr bool Square::lightSquare() const
+{
+    return !darkSquare();
+}
+
 constexpr int Square::chebyshev(Square a, Square b)
 {
-    return std::max(std::abs(a.rank() - b.rank()), std::abs(a.file() - b.file()));
+    // hack cus std::abs isn't constexpr
+    int rankDiff = a.rank() - b.rank();
+    rankDiff = rankDiff < 0 ? -rankDiff : rankDiff;
+    int fileDiff = a.file() - b.file();
+    fileDiff = fileDiff < 0 ? -fileDiff : fileDiff;
+    return std::max(rankDiff, fileDiff);
+}
+
+constexpr int Square::manhattan(Square a, Square b)
+{
+    // hack cus std::abs isn't constexpr
+    int rankDiff = a.rank() - b.rank();
+    rankDiff = rankDiff < 0 ? -rankDiff : rankDiff;
+    int fileDiff = a.file() - b.file();
+    fileDiff = fileDiff < 0 ? -fileDiff : fileDiff;
+    return rankDiff + fileDiff;
 }
 
 constexpr Square Square::average(Square a, Square b)
@@ -287,6 +315,93 @@ constexpr int SCORE_NONE = -32701;
 inline bool isMateScore(int score)
 {
     return std::abs(score) >= SCORE_MATE_IN_MAX;
+}
+
+struct CastlingRights
+{
+public:
+    enum class Internal : uint8_t
+    {
+        NONE = 0,
+        WHITE_KING_SIDE = 1,
+        WHITE_QUEEN_SIDE = 2,
+        BLACK_KING_SIDE = 4,
+        BLACK_QUEEN_SIDE = 8
+    };
+    static constexpr Internal NONE = Internal::NONE;
+    static constexpr Internal WHITE_KING_SIDE = Internal::WHITE_KING_SIDE;
+    static constexpr Internal WHITE_QUEEN_SIDE = Internal::WHITE_QUEEN_SIDE;
+    static constexpr Internal BLACK_KING_SIDE = Internal::BLACK_KING_SIDE;
+    static constexpr Internal BLACK_QUEEN_SIDE = Internal::BLACK_QUEEN_SIDE;
+
+    constexpr CastlingRights();
+    constexpr CastlingRights(Internal v);
+
+    constexpr CastlingRights& operator&=(const CastlingRights& other);
+    constexpr CastlingRights& operator|=(const CastlingRights& other);
+
+    constexpr CastlingRights operator&(const CastlingRights& other) const;
+    constexpr CastlingRights operator|(const CastlingRights& other) const;
+
+    constexpr bool has(Internal v) const;
+
+    constexpr int value() const;
+private:
+    Internal m_Value;
+};
+
+constexpr CastlingRights operator&(CastlingRights::Internal a, CastlingRights::Internal b)
+{
+    return CastlingRights(static_cast<CastlingRights::Internal>(static_cast<int>(a) & static_cast<int>(b)));
+}
+
+constexpr CastlingRights operator|(CastlingRights::Internal a, CastlingRights::Internal b)
+{
+    return CastlingRights(static_cast<CastlingRights::Internal>(static_cast<int>(a) | static_cast<int>(b)));
+}
+
+constexpr CastlingRights::CastlingRights()
+    : m_Value(Internal::NONE)
+{
+
+}
+
+constexpr CastlingRights::CastlingRights(Internal v)
+    : m_Value(v)
+{
+
+}
+
+constexpr CastlingRights& CastlingRights::operator&=(const CastlingRights& other)
+{
+    *this = *this & other;
+    return *this;
+}
+
+constexpr CastlingRights& CastlingRights::operator|=(const CastlingRights& other)
+{
+    *this = *this | other;
+    return *this;
+}
+
+constexpr CastlingRights CastlingRights::operator&(const CastlingRights& other) const
+{
+    return CastlingRights(m_Value & other.m_Value);
+}
+
+constexpr CastlingRights CastlingRights::operator|(const CastlingRights& other) const
+{
+    return CastlingRights(m_Value | other.m_Value);
+}
+
+constexpr bool CastlingRights::has(Internal v) const
+{
+    return static_cast<int>((m_Value & v).m_Value) != 0;
+}
+
+constexpr int CastlingRights::value() const
+{
+    return static_cast<int>(m_Value);
 }
 
 struct PackedScore

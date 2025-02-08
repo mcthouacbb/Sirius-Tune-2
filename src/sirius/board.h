@@ -3,6 +3,8 @@
 #include "defs.h"
 #include "bitboard.h"
 #include "zobrist.h"
+#include "util/murmur.h"
+#include "util/enum_array.h"
 
 #include <string_view>
 #include <string>
@@ -26,14 +28,116 @@ struct BoardState
     int halfMoveClock;
     int pliesFromNull;
     int epSquare;
-    int castlingRights;
+    CastlingRights castlingRights;
     int repetitions;
     int lastRepetition;
     ZKey zkey;
+    ColorArray<ZKey> nonPawnKeys;
+    ZKey minorPieceKey;
+    ZKey majorPieceKey;
     ZKey pawnKey;
     CheckInfo checkInfo;
     Bitboard threats;
+
+    void addPiece(Square pos, Color color, PieceType pieceType)
+    {
+        squares[pos.value()] = makePiece(pieceType, color);
+
+        Bitboard posBB = Bitboard::fromSquare(pos);
+        pieces[static_cast<int>(pieceType)] |= posBB;
+        colors[static_cast<int>(color)] |= posBB;
+
+        zkey.addPiece(pieceType, color, pos);
+        if (pieceType == PieceType::PAWN)
+            pawnKey.addPiece(pieceType, color, pos);
+        else
+        {
+            nonPawnKeys[color].addPiece(pieceType, color, pos);
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+                minorPieceKey.addPiece(pieceType, color, pos);
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+                majorPieceKey.addPiece(pieceType, color, pos);
+        }
+    }
+
+    void addPiece(Square pos, Piece piece)
+    {
+        squares[pos.value()] = piece;
+        Bitboard posBB = Bitboard::fromSquare(pos);
+        PieceType pieceType = getPieceType(piece);
+        Color color = getPieceColor(piece);
+        pieces[static_cast<int>(pieceType)] |= posBB;
+        colors[static_cast<int>(color)] |= posBB;
+
+        zkey.addPiece(pieceType, color, pos);
+        if (pieceType == PieceType::PAWN)
+            pawnKey.addPiece(pieceType, color, pos);
+        else
+        {
+            nonPawnKeys[color].addPiece(pieceType, color, pos);
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+                minorPieceKey.addPiece(pieceType, color, pos);
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+                majorPieceKey.addPiece(pieceType, color, pos);
+        }
+    }
+
+    void removePiece(Square pos)
+    {
+        Bitboard posBB = Bitboard::fromSquare(pos);
+        Piece piece = squares[pos.value()];
+        PieceType pieceType = getPieceType(piece);
+        Color color = getPieceColor(piece);
+        squares[pos.value()] = Piece::NONE;
+        pieces[static_cast<int>(pieceType)] ^= posBB;
+        colors[static_cast<int>(color)] ^= posBB;
+
+        zkey.removePiece(pieceType, color, pos);
+        if (pieceType == PieceType::PAWN)
+            pawnKey.removePiece(pieceType, color, pos);
+        else
+        {
+            nonPawnKeys[color].removePiece(pieceType, color, pos);
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+                minorPieceKey.removePiece(pieceType, color, pos);
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+                majorPieceKey.removePiece(pieceType, color, pos);
+        }
+    }
+
+    void movePiece(Square src, Square dst)
+    {
+        Piece piece = squares[src.value()];
+        Bitboard srcBB = Bitboard::fromSquare(src);
+        Bitboard dstBB = Bitboard::fromSquare(dst);
+        Bitboard moveBB = srcBB | dstBB;
+        PieceType pieceType = getPieceType(piece);
+        Color color = getPieceColor(piece);
+
+        squares[dst.value()] = piece;
+        squares[src.value()] = Piece::NONE;
+        pieces[static_cast<int>(pieceType)] ^= moveBB;
+        colors[static_cast<int>(color)] ^= moveBB;
+
+        zkey.movePiece(pieceType, color, src, dst);
+        if (pieceType == PieceType::PAWN)
+            pawnKey.movePiece(pieceType, color, src, dst);
+        else
+        {
+            nonPawnKeys[color].movePiece(pieceType, color, src, dst);
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+                minorPieceKey.movePiece(pieceType, color, src, dst);
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+                majorPieceKey.movePiece(pieceType, color, src, dst);
+        }
+    }
 };
+
+namespace eval
+{
+struct EvalState;
+struct EvalUpdates;
+}
 
 class Board
 {
@@ -50,7 +154,9 @@ public:
     std::string epdStr() const;
 
     void makeMove(Move move);
+    void makeMove(Move move, eval::EvalState& evalState);
     void unmakeMove();
+    void unmakeMove(eval::EvalState& evalState);
     void makeNullMove();
     void unmakeNullMove();
 
@@ -58,14 +164,20 @@ public:
     int epSquare() const;
     int gamePly() const;
     int halfMoveClock() const;
-    int castlingRights() const;
+    CastlingRights castlingRights() const;
     int pliesFromNull() const;
     ZKey zkey() const;
     ZKey pawnKey() const;
+    ZKey nonPawnKey(Color color) const;
+    ZKey minorPieceKey() const;
+    ZKey majorPieceKey() const;
+    uint64_t materialKey() const;
 
-    bool isDraw(int searchPly);
-    bool is3FoldDraw(int searchPly);
-    bool is50MoveDraw();
+    bool isDraw(int searchPly) const;
+    bool is3FoldDraw(int searchPly) const;
+    bool is50MoveDraw() const;
+    bool isInsufMaterialDraw() const;
+    bool hasUpcomingRepetition(int searchPly) const;
 
     Piece pieceAt(Square square) const;
     Bitboard pieces(PieceType type) const;
@@ -91,9 +203,16 @@ public:
     Bitboard threats() const;
 
     bool see(Move move, int margin) const;
+    bool isPseudoLegal(Move move) const;
     bool isLegal(Move move) const;
     ZKey keyAfter(Move move) const;
 private:
+    template<bool updateEval>
+    void makeMove(Move move, eval::EvalState* evalState);
+
+    template<bool updateEval>
+    void unmakeMove(eval::EvalState* evalState);
+
     const BoardState& currState() const;
     BoardState& currState();
     Bitboard pinners(Color color) const;
@@ -101,10 +220,10 @@ private:
     void updateCheckInfo();
     void calcThreats();
     void calcRepetitions();
-    void addPiece(Square pos, Color color, PieceType piece);
-    void addPiece(Square pos, Piece piece);
-    void removePiece(Square pos);
-    void movePiece(Square src, Square dst);
+    void addPiece(Square pos, Color color, PieceType pieceType/*, eval::EvalUpdates& updates*/);
+    void addPiece(Square pos, Piece piece/*, eval::EvalUpdates& updates*/);
+    void removePiece(Square pos/*, eval::EvalUpdates& updates*/);
+    void movePiece(Square src, Square dst/*, eval::EvalUpdates& updates*/);
 
     int seePieceValue(PieceType type) const;
 
@@ -124,24 +243,39 @@ inline const BoardState& Board::currState() const
     return m_States.back();
 }
 
+inline void Board::makeMove(Move move)
+{
+    makeMove<false>(move, nullptr);
+}
+
+inline void Board::makeMove(Move move, eval::EvalState& evalState)
+{
+    makeMove<true>(move, &evalState);
+}
+
+inline void Board::unmakeMove()
+{
+    unmakeMove<false>(nullptr);
+}
+
+inline void Board::unmakeMove(eval::EvalState& evalState)
+{
+    unmakeMove<true>(&evalState);
+}
+
 inline BoardState& Board::currState()
 {
     return m_States.back();
 }
 
-inline bool Board::isDraw(int searchPly)
+inline bool Board::isDraw(int searchPly) const
 {
-    return is50MoveDraw() || is3FoldDraw(searchPly);
+    return is50MoveDraw() || isInsufMaterialDraw() || is3FoldDraw(searchPly);
 }
 
-inline bool Board::is3FoldDraw(int searchPly)
+inline bool Board::is3FoldDraw(int searchPly) const
 {
     return currState().repetitions > 1 || (currState().repetitions == 1 && currState().lastRepetition < searchPly);
-}
-
-inline bool Board::is50MoveDraw()
-{
-    return currState().halfMoveClock >= 100;
 }
 
 inline Color Board::sideToMove() const
@@ -169,7 +303,7 @@ inline int Board::pliesFromNull() const
     return currState().pliesFromNull;
 }
 
-inline int Board::castlingRights() const
+inline CastlingRights Board::castlingRights() const
 {
     return currState().castlingRights;
 }
@@ -182,6 +316,42 @@ inline ZKey Board::zkey() const
 inline ZKey Board::pawnKey() const
 {
     return currState().pawnKey;
+}
+
+inline ZKey Board::nonPawnKey(Color color) const
+{
+    return currState().nonPawnKeys[color];
+}
+
+inline ZKey Board::minorPieceKey() const
+{
+    return currState().minorPieceKey;
+}
+
+inline ZKey Board::majorPieceKey() const
+{
+    return currState().majorPieceKey;
+}
+
+// yoinked from motor, which I think yoinked from Caissa
+inline uint64_t Board::materialKey() const
+{
+    uint64_t material_key = 0;
+
+    using enum Color;
+    using enum PieceType;
+
+    for (Color c : {WHITE, BLACK})
+    {
+        for (PieceType pt : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN})
+        {
+            int shift = static_cast<int>(pt) * 6 + static_cast<int>(c) * 30;
+            std::uint64_t count = pieces(c, pt).popcount();
+            material_key |= (count << shift);
+        }
+    }
+
+    return murmurHash3(material_key);
 }
 
 inline Piece Board::pieceAt(Square square) const

@@ -2,8 +2,8 @@
 
 #include "defs.h"
 #include "bitboard.h"
+#include "util/multi_array.h"
 
-#include <array>
 #include <utility>
 
 namespace attacks
@@ -33,14 +33,14 @@ struct AttackData
         uint32_t shift;
     };
 
-    std::array<std::array<Bitboard, 64>, 64> inBetweenSquares;
-    std::array<std::array<Bitboard, 64>, 64> moveMasks;
-    std::array<std::array<Bitboard, 64>, 64> alignedSquares;
+    MultiArray<Bitboard, 64, 64> inBetweenSquares;
+    MultiArray<Bitboard, 64, 64> moveMasks;
+    MultiArray<Bitboard, 64, 64> alignedSquares;
 
-    std::array<std::array<Bitboard, 64>, 2> passedPawnMasks;
+    MultiArray<Bitboard, 2, 64> passedPawnMasks;
     std::array<Bitboard, 64> isolatedPawnMasks;
 
-    std::array<std::array<Bitboard, 64>, 2> pawnAttacks;
+    MultiArray<Bitboard, 2, 64> pawnAttacks;
     std::array<Bitboard, 64> kingAttacks;
     std::array<Bitboard, 64> knightAttacks;
 
@@ -107,6 +107,14 @@ inline Bitboard fillUp(Bitboard bb)
     }
 }
 
+inline Bitboard fillUp(Bitboard bb, Color c)
+{
+    if (c == Color::WHITE)
+        return attacks::fillUp<Color::WHITE>(bb);
+    else
+        return attacks::fillUp<Color::BLACK>(bb);
+}
+
 template<Color c>
 inline constexpr int pawnPushOffset()
 {
@@ -133,7 +141,7 @@ inline constexpr Bitboard qscBlockSquares()
 
 inline bool aligned(Square a, Square b, Square c)
 {
-    return (attackData.alignedSquares[a.value()][b.value()] & Bitboard::fromSquare(c)).any();
+    return attackData.alignedSquares[a.value()][b.value()].has(c);
 }
 
 inline Bitboard inBetweenSquares(Square src, Square dst)
@@ -146,9 +154,9 @@ inline Bitboard moveMask(Square king, Square checker)
     return attackData.moveMasks[king.value()][checker.value()];
 }
 
-inline int castleRightsMask(Square square)
+inline CastlingRights castleRightsMask(Square square)
 {
-    return attackData.castleRightsMasks[square.value()];
+    return CastlingRights(static_cast<CastlingRights::Internal>(attackData.castleRightsMasks[square.value()]));
 }
 
 inline Bitboard passedPawnMask(Color color, Square square)
@@ -198,19 +206,20 @@ inline Bitboard queenAttacks(Square square, Bitboard blockers)
 template<PieceType pce>
 inline Bitboard pieceAttacks(Square square, Bitboard blockers)
 {
+    using enum PieceType;
     static_assert(
-        pce == PieceType::KNIGHT ||
-        pce == PieceType::BISHOP ||
-        pce == PieceType::ROOK ||
-        pce == PieceType::QUEEN ||
-        pce == PieceType::KING, "invalid piece type for attacks::pieceAttacks");
+        pce == KNIGHT ||
+        pce == BISHOP ||
+        pce == ROOK ||
+        pce == QUEEN ||
+        pce == KING, "invalid piece type for attacks::pieceAttacks");
     switch (pce)
     {
-        case PieceType::KNIGHT: return knightAttacks(square);
-        case PieceType::BISHOP: return bishopAttacks(square, blockers);
-        case PieceType::ROOK: return rookAttacks(square, blockers);
-        case PieceType::QUEEN: return queenAttacks(square, blockers);
-        case PieceType::KING: return kingAttacks(square);
+        case KNIGHT: return knightAttacks(square);
+        case BISHOP: return bishopAttacks(square, blockers);
+        case ROOK: return rookAttacks(square, blockers);
+        case QUEEN: return queenAttacks(square, blockers);
+        case KING: return kingAttacks(square);
             // unreachable
         default: return Bitboard(0);
     }
