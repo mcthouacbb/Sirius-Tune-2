@@ -10,6 +10,9 @@ endif()
 project(Sirius-Tune-2)
 
 set(SRCS
+    "src/sirius/util/enum_array.h"
+    "src/sirius/util/multi_array.h"
+    "src/sirius/util/murmur.h"
     "src/sirius/util/prng.h"
     "src/sirius/attacks.cpp"
     "src/sirius/attacks.h"

@@ -5,38 +5,6 @@
 #include <sstream>
 #include <iomanip>
 
-template<typename T>
-struct ColorArray : public std::array<T, 2>
-{
-    using std::array<T, 2>::operator[];
-
-    T& operator[](Color p)
-    {
-        return (*this)[static_cast<int>(p)];
-    }
-
-    const T& operator[](Color p) const
-    {
-        return (*this)[static_cast<int>(p)];
-    }
-};
-
-template<typename T>
-struct PieceTypeArray : public std::array<T, 6>
-{
-    using std::array<T, 6>::operator[];
-
-    T& operator[](PieceType p)
-    {
-        return (*this)[static_cast<int>(p)];
-    }
-
-    const T& operator[](PieceType p) const
-    {
-        return (*this)[static_cast<int>(p)];
-    }
-};
-
 using TraceElem = ColorArray<int>;
 
 #define TRACE_OFFSET(elem) (offsetof(Trace, elem) / sizeof(TraceElem))
@@ -572,40 +540,26 @@ PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStru
     return PackedScore(0, egSign * egComplexity);
 }
 
+template<Color us>
 void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& pawnStructure)
 {
-    Bitboard whitePawns = board.pieces(Color::WHITE, PieceType::PAWN);
-    Bitboard blackPawns = board.pieces(Color::BLACK, PieceType::PAWN);
-    Bitboard blockedWhitePawns = whitePawns & board.allPieces().south();
-    Bitboard blockedBlackPawns = blackPawns & board.allPieces().north();
-    Square whiteKing = board.kingSq(Color::WHITE);
-    Square blackKing = board.kingSq(Color::BLACK);
+    constexpr Color them = ~us;
+    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard blockedPawns = ourPawns & attacks::pawnPushes<them>(board.allPieces());
+    Square ourKing = board.kingSq(us);
 
-    evalData.mobilityArea[Color::WHITE] = ~pawnStructure.pawnAttacks[Color::BLACK] & ~Bitboard::fromSquare(whiteKing) & ~blockedWhitePawns;
-    evalData.attacked[Color::WHITE] = evalData.attackedBy[Color::WHITE][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::WHITE];
+    evalData.mobilityArea[us] = ~pawnStructure.pawnAttacks[them] & ~Bitboard::fromSquare(ourKing) & ~blockedPawns;
+    evalData.attacked[us] = evalData.attackedBy[us][PAWN] = pawnStructure.pawnAttacks[us];
 
-    Bitboard whiteKingAtks = attacks::kingAttacks(whiteKing);
-    evalData.attackedBy[Color::WHITE][PieceType::KING] = whiteKingAtks;
-    evalData.attackedBy2[Color::WHITE] = evalData.attacked[Color::WHITE] & whiteKingAtks;
-    evalData.attacked[Color::WHITE] |= whiteKingAtks;
-    evalData.kingRing[Color::WHITE] = (whiteKingAtks | whiteKingAtks.north()) & ~Bitboard::fromSquare(whiteKing);
-    if ((Bitboard::fromSquare(whiteKing) & FILE_H_BB).any())
-        evalData.kingRing[Color::WHITE] |= evalData.kingRing[Color::WHITE].west();
-    if ((Bitboard::fromSquare(whiteKing) & FILE_A_BB).any())
-        evalData.kingRing[Color::WHITE] |= evalData.kingRing[Color::WHITE].east();
-
-    evalData.mobilityArea[Color::BLACK] = ~pawnStructure.pawnAttacks[Color::WHITE] & ~Bitboard::fromSquare(blackKing) & ~blockedBlackPawns;
-    evalData.attacked[Color::BLACK] = evalData.attackedBy[Color::BLACK][PieceType::PAWN] = pawnStructure.pawnAttacks[Color::BLACK];
-
-    Bitboard blackKingAtks = attacks::kingAttacks(blackKing);
-    evalData.attackedBy[Color::BLACK][PieceType::KING] = blackKingAtks;
-    evalData.attackedBy2[Color::BLACK] = evalData.attacked[Color::BLACK] & blackKingAtks;
-    evalData.attacked[Color::BLACK] |= blackKingAtks;
-    evalData.kingRing[Color::BLACK] = (blackKingAtks | blackKingAtks.south()) & ~Bitboard::fromSquare(blackKing);
-    if ((Bitboard::fromSquare(blackKing) & FILE_H_BB).any())
-        evalData.kingRing[Color::BLACK] |= evalData.kingRing[Color::BLACK].west();
-    if ((Bitboard::fromSquare(blackKing) & FILE_A_BB).any())
-        evalData.kingRing[Color::BLACK] |= evalData.kingRing[Color::BLACK].east();
+    Bitboard ourKingAtks = attacks::kingAttacks(ourKing);
+    evalData.attackedBy[us][KING] = ourKingAtks;
+    evalData.attackedBy2[us] = evalData.attacked[us] & ourKingAtks;
+    evalData.attacked[us] |= ourKingAtks;
+    evalData.kingRing[us] = (ourKingAtks | attacks::pawnPushes<us>(ourKingAtks)) & ~Bitboard::fromSquare(ourKing);
+    if (FILE_H_BB.has(ourKing))
+        evalData.kingRing[us] |= evalData.kingRing[us].west();
+    if (FILE_A_BB.has(ourKing))
+        evalData.kingRing[us] |= evalData.kingRing[us].east();
 }
 
 PackedScore evaluatePsqt(const Board& board, Trace& trace)
@@ -657,8 +611,8 @@ Trace getTrace(const Board& board)
     PawnStructure pawnStructure(board);
 
     EvalData evalData = {};
-    initEvalData(board, evalData, pawnStructure);
-
+    initEvalData<Color::WHITE>(board, evalData, pawnStructure);
+    initEvalData<Color::BLACK>(board, evalData, pawnStructure);
 
     eval += evaluatePawns(board, pawnStructure, trace);
 

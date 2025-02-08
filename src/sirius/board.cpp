@@ -1,5 +1,8 @@
 #include "board.h"
 #include "attacks.h"
+//#include "eval/eval_state.h"
+//#include "movegen.h"
+//#include "cuckoo.h"
 
 #include <cstring>
 #include <charconv>
@@ -13,17 +16,8 @@ void Board::setToFen(const std::string_view& fen)
 {
     m_States.clear();
     m_States.push_back(BoardState{});
-    currState().pliesFromNull = 0;
-    currState().repetitions = 0;
-    currState().lastRepetition = 0;
-
 
     currState().squares.fill(Piece::NONE);
-    currState().pieces = {};
-    currState().colors = {};
-
-    currState().zkey.value = 0;
-    currState().pawnKey.value = 0;
 
     int i = 0;
     int sq = 56;
@@ -42,54 +36,40 @@ void Board::setToFen(const std::string_view& fen)
                 sq += fen[i] - '0';
                 break;
             case 'k':
-                currState().zkey.addPiece(PieceType::KING, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::KING);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::KING);
                 break;
             case 'q':
-                currState().zkey.addPiece(PieceType::QUEEN, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::QUEEN);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::QUEEN);
                 break;
             case 'r':
-                currState().zkey.addPiece(PieceType::ROOK, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::ROOK);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::ROOK);
                 break;
             case 'b':
-                currState().zkey.addPiece(PieceType::BISHOP, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::BISHOP);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::BISHOP);
                 break;
             case 'n':
-                currState().zkey.addPiece(PieceType::KNIGHT, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::KNIGHT);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::KNIGHT);
                 break;
             case 'p':
-                currState().zkey.addPiece(PieceType::PAWN, Color::BLACK, Square(sq));
-                currState().pawnKey.addPiece(PieceType::PAWN, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::PAWN);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::PAWN);
                 break;
             case 'K':
-                currState().zkey.addPiece(PieceType::KING, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::KING);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::KING);
                 break;
             case 'Q':
-                currState().zkey.addPiece(PieceType::QUEEN, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::QUEEN);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::QUEEN);
                 break;
             case 'R':
-                currState().zkey.addPiece(PieceType::ROOK, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::ROOK);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::ROOK);
                 break;
             case 'B':
-                currState().zkey.addPiece(PieceType::BISHOP, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::BISHOP);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::BISHOP);
                 break;
             case 'N':
-                currState().zkey.addPiece(PieceType::KNIGHT, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::KNIGHT);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::KNIGHT);
                 break;
             case 'P':
-                currState().zkey.addPiece(PieceType::PAWN, Color::WHITE, Square(sq));
-                currState().pawnKey.addPiece(PieceType::PAWN, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::PAWN);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::PAWN);
                 break;
             case '/':
                 sq -= 16;
@@ -108,7 +88,7 @@ done:
     }
 
     i += 2;
-    currState().castlingRights = 0;
+    currState().castlingRights = CastlingRights::NONE;
     if (fen[i] == '-')
     {
         i++;
@@ -118,25 +98,25 @@ done:
         if (fen[i] == 'K')
         {
             i++;
-            currState().castlingRights |= 1;
+            currState().castlingRights |= CastlingRights::WHITE_KING_SIDE;
         }
 
         if (fen[i] == 'Q')
         {
             i++;
-            currState().castlingRights |= 2;
+            currState().castlingRights |= CastlingRights::WHITE_QUEEN_SIDE;
         }
 
         if (fen[i] == 'k')
         {
             i++;
-            currState().castlingRights |= 4;
+            currState().castlingRights |= CastlingRights::BLACK_KING_SIDE;
         }
 
         if (fen[i] == 'q')
         {
             i++;
-            currState().castlingRights |= 8;
+            currState().castlingRights |= CastlingRights::BLACK_QUEEN_SIDE;
         }
     }
 
@@ -169,16 +149,7 @@ void Board::setToEpd(const std::string_view& epd)
     m_States.clear();
     m_States.push_back(BoardState{});
 
-    currState().pliesFromNull = 0;
-    currState().repetitions = 0;
-    currState().lastRepetition = 0;
-
     currState().squares.fill(Piece::NONE);
-    currState().pieces = {};
-    currState().colors = {};
-
-    currState().zkey.value = 0;
-    currState().pawnKey.value = 0;
 
     int i = 0;
     int sq = 56;
@@ -197,54 +168,40 @@ void Board::setToEpd(const std::string_view& epd)
                 sq += epd[i] - '0';
                 break;
             case 'k':
-                currState().zkey.addPiece(PieceType::KING, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::KING);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::KING);
                 break;
             case 'q':
-                currState().zkey.addPiece(PieceType::QUEEN, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::QUEEN);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::QUEEN);
                 break;
             case 'r':
-                currState().zkey.addPiece(PieceType::ROOK, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::ROOK);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::ROOK);
                 break;
             case 'b':
-                currState().zkey.addPiece(PieceType::BISHOP, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::BISHOP);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::BISHOP);
                 break;
             case 'n':
-                currState().zkey.addPiece(PieceType::KNIGHT, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::KNIGHT);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::KNIGHT);
                 break;
             case 'p':
-                currState().zkey.addPiece(PieceType::PAWN, Color::BLACK, Square(sq));
-                currState().pawnKey.addPiece(PieceType::PAWN, Color::BLACK, Square(sq));
-                addPiece(Square(sq++), Color::BLACK, PieceType::PAWN);
+                currState().addPiece(Square(sq++), Color::BLACK, PieceType::PAWN);
                 break;
             case 'K':
-                currState().zkey.addPiece(PieceType::KING, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::KING);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::KING);
                 break;
             case 'Q':
-                currState().zkey.addPiece(PieceType::QUEEN, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::QUEEN);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::QUEEN);
                 break;
             case 'R':
-                currState().zkey.addPiece(PieceType::ROOK, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::ROOK);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::ROOK);
                 break;
             case 'B':
-                currState().zkey.addPiece(PieceType::BISHOP, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::BISHOP);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::BISHOP);
                 break;
             case 'N':
-                currState().zkey.addPiece(PieceType::KNIGHT, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::KNIGHT);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::KNIGHT);
                 break;
             case 'P':
-                currState().zkey.addPiece(PieceType::PAWN, Color::WHITE, Square(sq));
-                currState().pawnKey.addPiece(PieceType::PAWN, Color::WHITE, Square(sq));
-                addPiece(Square(sq++), Color::WHITE, PieceType::PAWN);
+                currState().addPiece(Square(sq++), Color::WHITE, PieceType::PAWN);
                 break;
             case '/':
                 sq -= 16;
@@ -262,7 +219,7 @@ done:
     }
 
     i += 2;
-    currState().castlingRights = 0;
+    currState().castlingRights = CastlingRights::NONE;
     if (epd[i] == '-')
     {
         i++;
@@ -272,25 +229,25 @@ done:
         if (epd[i] == 'K')
         {
             i++;
-            currState().castlingRights |= 1;
+            currState().castlingRights |= CastlingRights::WHITE_KING_SIDE;
         }
 
         if (epd[i] == 'Q')
         {
             i++;
-            currState().castlingRights |= 2;
+            currState().castlingRights |= CastlingRights::WHITE_QUEEN_SIDE;
         }
 
         if (epd[i] == 'k')
         {
             i++;
-            currState().castlingRights |= 4;
+            currState().castlingRights |= CastlingRights::BLACK_KING_SIDE;
         }
 
         if (epd[i] == 'q')
         {
             i++;
-            currState().castlingRights |= 8;
+            currState().castlingRights |= CastlingRights::BLACK_QUEEN_SIDE;
         }
     }
 
@@ -374,17 +331,17 @@ std::string Board::fenStr() const
 
     fen += m_SideToMove == Color::WHITE ? "w " : "b ";
 
-    if (currState().castlingRights == 0)
+    if (currState().castlingRights.value() == 0)
         fen += '-';
     else
     {
-        if (currState().castlingRights & 1)
+        if (currState().castlingRights.has(CastlingRights::WHITE_KING_SIDE))
             fen += 'K';
-        if (currState().castlingRights & 2)
+        if (currState().castlingRights.has(CastlingRights::WHITE_QUEEN_SIDE))
             fen += 'Q';
-        if (currState().castlingRights & 4)
+        if (currState().castlingRights.has(CastlingRights::BLACK_KING_SIDE))
             fen += 'k';
-        if (currState().castlingRights & 8)
+        if (currState().castlingRights.has(CastlingRights::BLACK_QUEEN_SIDE))
             fen += 'q';
     }
 
@@ -401,7 +358,7 @@ std::string Board::fenStr() const
     fen += ' ';
     fen += std::to_string(currState().halfMoveClock);
     fen += ' ';
-    fen += std::to_string(m_GamePly / 2 + (m_SideToMove == Color::BLACK));
+    fen += std::to_string(m_GamePly / 2 + 1);
 
     return fen;
 }
@@ -436,17 +393,17 @@ std::string Board::epdStr() const
 
     epd += m_SideToMove == Color::WHITE ? "w " : "b ";
 
-    if (currState().castlingRights == 0)
+    if (currState().castlingRights.value() == 0)
         epd += '-';
     else
     {
-        if (currState().castlingRights & 1)
+        if (currState().castlingRights.has(CastlingRights::WHITE_KING_SIDE))
             epd += 'K';
-        if (currState().castlingRights & 2)
+        if (currState().castlingRights.has(CastlingRights::WHITE_QUEEN_SIDE))
             epd += 'Q';
-        if (currState().castlingRights & 4)
+        if (currState().castlingRights.has(CastlingRights::BLACK_KING_SIDE))
             epd += 'k';
-        if (currState().castlingRights & 8)
+        if (currState().castlingRights.has(CastlingRights::BLACK_QUEEN_SIDE))
             epd += 'q';
     }
 
@@ -463,7 +420,8 @@ std::string Board::epdStr() const
     return epd;
 }
 
-void Board::makeMove(Move move)
+template<bool updateEval>
+void Board::makeMove(Move move, eval::EvalState* evalState)
 {
     m_States.push_back(currState());
     BoardState& prev = m_States[m_States.size() - 2];
@@ -482,6 +440,8 @@ void Board::makeMove(Move move)
     if (currState().epSquare != -1)
         currState().zkey.updateEP(currState().epSquare & 7);
 
+    //eval::EvalUpdates updates;
+
     switch (move.type())
     {
         case MoveType::NONE:
@@ -494,17 +454,12 @@ void Board::makeMove(Move move)
             {
                 currState().halfMoveClock = 0;
                 removePiece(move.toSq());
-                currState().zkey.removePiece(getPieceType(dstPiece), getPieceColor(dstPiece), move.toSq());
-                if (getPieceType(dstPiece) == PieceType::PAWN)
-                    currState().pawnKey.removePiece(getPieceType(dstPiece), getPieceColor(dstPiece), move.toSq());
             }
 
             movePiece(move.fromSq(), move.toSq());
-            currState().zkey.movePiece(getPieceType(srcPiece), getPieceColor(srcPiece), move.fromSq(), move.toSq());
 
             if (getPieceType(srcPiece) == PieceType::PAWN)
             {
-                currState().pawnKey.movePiece(getPieceType(srcPiece), getPieceColor(srcPiece), move.fromSq(), move.toSq());
                 currState().halfMoveClock = 0;
                 if (std::abs(move.fromSq() - move.toSq()) == 16)
                     currState().epSquare = (move.fromSq().value() + move.toSq().value()) / 2;
@@ -518,15 +473,9 @@ void Board::makeMove(Move move)
             Piece dstPiece = pieceAt(move.toSq());
 
             if (dstPiece != Piece::NONE)
-            {
                 removePiece(move.toSq());
-                currState().zkey.removePiece(getPieceType(dstPiece), getPieceColor(dstPiece), move.toSq());
-            }
             removePiece(move.fromSq());
-            currState().zkey.removePiece(PieceType::PAWN, m_SideToMove, move.fromSq());
-            currState().pawnKey.removePiece(PieceType::PAWN, m_SideToMove, move.fromSq());
             addPiece(move.toSq(), m_SideToMove, promoPiece(move.promotion()));
-            currState().zkey.addPiece(promoPiece(move.promotion()), m_SideToMove, move.toSq());
             break;
         }
         case MoveType::CASTLE:
@@ -535,17 +484,13 @@ void Board::makeMove(Move move)
             {
                 // queen side
                 movePiece(move.fromSq(), move.toSq());
-                currState().zkey.movePiece(PieceType::KING, m_SideToMove, move.fromSq(), move.toSq());
                 movePiece(move.toSq() - 2, move.fromSq() - 1);
-                currState().zkey.movePiece(PieceType::ROOK, m_SideToMove, move.toSq() - 2, move.fromSq() - 1);
             }
             else
             {
                 // king side
                 movePiece(move.fromSq(), move.toSq());
-                currState().zkey.movePiece(PieceType::KING, m_SideToMove, move.fromSq(), move.toSq());
                 movePiece(move.toSq() + 1, move.fromSq() + 1);
-                currState().zkey.movePiece(PieceType::ROOK, m_SideToMove, move.toSq() + 1, move.fromSq() + 1);
             }
             break;
         }
@@ -556,11 +501,7 @@ void Board::makeMove(Move move)
             int offset = m_SideToMove == Color::WHITE ? -8 : 8;
 
             removePiece(move.toSq() + offset);
-            currState().zkey.removePiece(PieceType::PAWN, ~m_SideToMove, move.toSq() + offset);
-            currState().pawnKey.removePiece(PieceType::PAWN, ~m_SideToMove, move.toSq() + offset);
             movePiece(move.fromSq(), move.toSq());
-            currState().zkey.movePiece(PieceType::PAWN, m_SideToMove, move.fromSq(), move.toSq());
-            currState().pawnKey.movePiece(PieceType::PAWN, m_SideToMove, move.fromSq(), move.toSq());
             break;
         }
     }
@@ -585,15 +526,28 @@ void Board::makeMove(Move move)
     updateCheckInfo();
     calcThreats();
     calcRepetitions();
+
+    /*if constexpr (updateEval)
+        evalState->push(*this, updates);*/
 }
 
-void Board::unmakeMove()
+template<bool updateEval>
+void Board::unmakeMove(eval::EvalState* evalState)
 {
     m_States.pop_back();
     m_GamePly--;
 
     m_SideToMove = ~m_SideToMove;
+
+    /*if constexpr (updateEval)
+        evalState->pop();*/
 }
+
+//template void Board::makeMove<true>(Move move, eval::EvalState* evalState);
+template void Board::makeMove<false>(Move move, eval::EvalState* evalState);
+
+//template void Board::unmakeMove<true>(eval::EvalState* evalState);
+template void Board::unmakeMove<false>(eval::EvalState* evalState);
 
 void Board::makeNullMove()
 {
@@ -628,6 +582,95 @@ void Board::unmakeNullMove()
     m_GamePly--;
 
     m_SideToMove = ~m_SideToMove;
+}
+
+
+bool Board::is50MoveDraw() const
+{
+    if (halfMoveClock() < 100)
+        return false;
+    if (checkers().empty())
+        return true;
+
+    /*MoveList moves;
+    genMoves<MoveGenType::LEGAL>(*this, moves);
+    if (moves.size() == 0)
+        return false;*/
+    return true;
+}
+
+bool Board::isInsufMaterialDraw() const
+{
+    Bitboard nonMinorPcs =
+        pieces(PieceType::QUEEN) |
+        pieces(PieceType::ROOK) |
+        pieces(PieceType::PAWN);
+
+    if (nonMinorPcs.any())
+        return false;
+
+    switch (allPieces().popcount())
+    {
+        case 2:
+            return true;
+        case 3:
+            return true;
+        case 4:
+        {
+            Bitboard bishops = pieces(PieceType::BISHOP);
+            if (bishops.popcount() == 2 && ((bishops & LIGHT_SQUARES_BB).popcount() == 2 || (bishops & LIGHT_SQUARES_BB).empty()))
+                return true;
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
+// see comment in cuckoo.cpp
+bool Board::hasUpcomingRepetition(int searchPly) const
+{
+    return false;
+    /*const auto S = [this](int d)
+    {
+        return m_States[m_States.size() - 1 - d].zkey.value;
+    };
+
+    int reversible = std::min(currState().halfMoveClock, currState().pliesFromNull);
+    if (reversible < 3)
+        return false;
+
+    uint64_t currKey = S(0);
+    uint64_t other = ~(currKey ^ S(1));
+    for (int i = 3; i <= reversible; i += 2)
+    {
+        uint64_t prevKey = S(i);
+        other ^= ~(prevKey ^ S(i - 1));
+        if (other != 0)
+            continue;
+
+        uint64_t keyDiff = currKey ^ prevKey;
+
+        uint32_t slot = cuckoo::H1(keyDiff);
+        if (keyDiff != cuckoo::keyDiffs[slot])
+            slot = cuckoo::H2(keyDiff);
+
+        if (keyDiff != cuckoo::keyDiffs[slot])
+            continue;
+
+        Move move = cuckoo::moves[slot];
+        // move is obviously illegal if it goes through a piece
+        if ((allPieces() & attacks::inBetweenSquares(move.fromSq(), move.toSq())).any())
+            continue;
+
+        if (searchPly > i)
+            return true;
+
+        if (m_States[m_States.size() - 1 - i].repetitions > 0)
+            return true;
+    }
+
+    return false;*/
 }
 
 bool Board::squareAttacked(Color color, Square square, Bitboard blockers) const
@@ -868,8 +911,158 @@ bool Board::isLegal(Move move) const
 
     // pinned pieces
     return
-        (checkBlockers(m_SideToMove) & Bitboard::fromSquare(move.fromSq())).empty() ||
+        !checkBlockers(m_SideToMove).has(move.fromSq()) ||
         attacks::aligned(kingSq(m_SideToMove), move.fromSq(), move.toSq());
+}
+
+// move generation handles double check and check evasions, so this function also handles them
+bool Board::isPseudoLegal(Move move) const
+{
+    if (move.fromSq() == move.toSq())
+        return false;
+
+    Piece srcPiece = pieceAt(move.fromSq());
+    if (srcPiece == Piece::NONE || getPieceColor(srcPiece) != m_SideToMove)
+        return false;
+
+    Piece dstPiece = pieceAt(move.toSq());
+    if (dstPiece != Piece::NONE && (getPieceColor(dstPiece) == m_SideToMove || getPieceType(dstPiece) == PieceType::KING))
+        return false;
+
+    PieceType srcPieceType = getPieceType(srcPiece);
+    PieceType dstPieceType = getPieceType(dstPiece);
+
+    if (move.type() == MoveType::CASTLE)
+    {
+        if (srcPieceType != PieceType::KING || checkers().any())
+            return false;
+
+        Bitboard firstRank = m_SideToMove == Color::WHITE ? Bitboard::nthRank<Color::WHITE, 0>() : Bitboard::nthRank<Color::BLACK, 0>();
+        if (!firstRank.has(move.fromSq()) || !firstRank.has(move.toSq()))
+            return false;
+
+        if (move.fromSq() > move.toSq())
+        {
+            if (move.toSq() != move.fromSq() - 2)
+                return false;
+            // queen side
+            if ((castlingRights().value() & (2 << 2 * static_cast<int>(m_SideToMove))) == 0)
+                return false;
+            if (m_SideToMove == Color::WHITE)
+                return (attacks::qscBlockSquares<Color::WHITE>() & allPieces()).empty();
+            else
+                return (attacks::qscBlockSquares<Color::BLACK>() & allPieces()).empty();
+        }
+        else
+        {
+            if (move.toSq() != move.fromSq() + 2)
+                return false;
+            // king side
+            if ((castlingRights().value() & (1 << 2 * static_cast<int>(m_SideToMove))) == 0)
+                return false;
+            if (m_SideToMove == Color::WHITE)
+                return (attacks::kscBlockSquares<Color::WHITE>() & allPieces()).empty();
+            else
+                return (attacks::kscBlockSquares<Color::BLACK>() & allPieces()).empty();
+        }
+    }
+
+    if (srcPieceType != PieceType::KING && checkers().multiple())
+        return false;
+
+    if (move.type() == MoveType::CASTLE)
+        return false;
+
+    Bitboard moveMask = checkers().any() && srcPieceType != PieceType::KING ? attacks::moveMask(kingSq(m_SideToMove), checkers().lsb()) : Bitboard(~0ull);
+
+    if (move.type() != MoveType::ENPASSANT && !moveMask.has(move.toSq()))
+        return false;
+
+    if (srcPieceType == PieceType::PAWN)
+    {
+        int pushOffset = m_SideToMove == Color::WHITE ? attacks::pawnPushOffset<Color::WHITE>() : attacks::pawnPushOffset<Color::BLACK>();
+        if (move.type() == MoveType::ENPASSANT)
+        {
+            if (move.toSq().value() != epSquare())
+                return false;
+            if (!attacks::pawnAttacks(m_SideToMove, move.fromSq()).has(move.toSq()))
+                return false;
+            return checkers().empty() || moveMask.has(Square(epSquare() - pushOffset));
+        }
+
+        if (dstPieceType == PieceType::NONE)
+        {
+            // must be a push
+            if (move.toSq() - move.fromSq() == pushOffset)
+            {
+                // single
+                Bitboard seventhRank = m_SideToMove == Color::WHITE ? Bitboard::nthRank<Color::WHITE, 6>() : Bitboard::nthRank<Color::BLACK, 6>();
+
+                if (move.type() == MoveType::PROMOTION)
+                {
+                    return seventhRank.has(move.fromSq());
+                }
+                else
+                {
+                    return move.fromSq().value() >= 8 && move.fromSq().value() < 56 && !seventhRank.has(move.fromSq());
+                }
+            }
+            else if (move.toSq() - move.fromSq() == pushOffset * 2)
+            {
+                if (move.type() != MoveType::NONE)
+                    return false;
+                if (pieceAt(move.fromSq() + pushOffset) != Piece::NONE)
+                    return false;
+                // double
+                Bitboard secondRank = m_SideToMove == Color::WHITE ? Bitboard::nthRank<Color::WHITE, 1>() : Bitboard::nthRank<Color::BLACK, 1>();
+                return secondRank.has(move.fromSq());
+            }
+            else
+                return false;
+        }
+        else
+        {
+            // must be a capture
+            if (!attacks::pawnAttacks(m_SideToMove, move.fromSq()).has(move.toSq()))
+                return false;
+
+            Bitboard seventhRank = m_SideToMove == Color::WHITE ? Bitboard::nthRank<Color::WHITE, 6>() : Bitboard::nthRank<Color::BLACK, 6>();
+
+            if (move.type() == MoveType::PROMOTION)
+            {
+                return seventhRank.has(move.fromSq());
+            }
+            else
+            {
+                return move.fromSq().value() >= 8 && move.fromSq().value() < 56 && !seventhRank.has(move.fromSq());
+            }
+        }
+    }
+
+    if (move.type() != MoveType::NONE)
+        return false;
+
+    Bitboard pieceAttacks = {};
+    switch (srcPieceType)
+    {
+        case PieceType::KNIGHT:
+            pieceAttacks = attacks::knightAttacks(move.fromSq());
+            break;
+        case PieceType::BISHOP:
+            pieceAttacks = attacks::bishopAttacks(move.fromSq(), allPieces());
+            break;
+        case PieceType::ROOK:
+            pieceAttacks = attacks::rookAttacks(move.fromSq(), allPieces());
+            break;
+        case PieceType::QUEEN:
+            pieceAttacks = attacks::queenAttacks(move.fromSq(), allPieces());
+            break;
+        case PieceType::KING:
+            pieceAttacks = attacks::kingAttacks(move.fromSq());
+            break;
+    }
+
+    return pieceAttacks.has(move.toSq());
 }
 
 ZKey Board::keyAfter(Move move) const
@@ -936,14 +1129,12 @@ ZKey Board::keyAfter(Move move) const
 
     keyAfter.updateCastlingRights(currState().castlingRights);
 
-    int newCastlingRights =
+    CastlingRights newCastlingRights =
         currState().castlingRights &
         attacks::castleRightsMask(move.fromSq()) &
         attacks::castleRightsMask(move.toSq());
 
     keyAfter.updateCastlingRights(newCastlingRights);
-
-
 
     if (epSquare == currState().epSquare)
         epSquare = -1;
@@ -1012,7 +1203,7 @@ void Board::calcThreats()
 void Board::calcRepetitions()
 {
     int reversible = std::min(currState().halfMoveClock, currState().pliesFromNull);
-    for (int i = 2; i <= reversible; i += 2)
+    for (int i = 4; i <= reversible; i += 2)
     {
         BoardState& state = m_States[m_States.size() - 1 - i];
         if (state.zkey == currState().zkey)
@@ -1026,44 +1217,30 @@ void Board::calcRepetitions()
     currState().lastRepetition = 0;
 }
 
-void Board::addPiece(Square pos, Color color, PieceType piece)
+void Board::addPiece(Square pos, Color color, PieceType pieceType/*, eval::EvalUpdates& updates*/)
 {
-    currState().squares[pos.value()] = makePiece(piece, color);
-
-    Bitboard posBB = Bitboard::fromSquare(pos);
-    currState().pieces[static_cast<int>(piece)] |= posBB;
-    currState().colors[static_cast<int>(color)] |= posBB;
+    Piece piece = makePiece(pieceType, color);
+    currState().addPiece(pos, piece);
+    //updates.pushAdd({piece, pos});
 }
 
-void Board::addPiece(Square pos, Piece piece)
+void Board::addPiece(Square pos, Piece piece/*, eval::EvalUpdates& updates*/)
 {
-    currState().squares[pos.value()] = piece;
-    Bitboard posBB = Bitboard::fromSquare(pos);
-    currState().pieces[static_cast<int>(getPieceType(piece))] |= posBB;
-    currState().colors[static_cast<int>(getPieceColor(piece))] |= posBB;
+    currState().addPiece(pos, piece);
+    //updates.pushAdd({piece, pos});
 }
 
-void Board::removePiece(Square pos)
+void Board::removePiece(Square pos/*, eval::EvalUpdates& updates*/)
 {
-    Bitboard posBB = Bitboard::fromSquare(pos);
-    PieceType pieceType = getPieceType(pieceAt(pos));
-    Color color = getPieceColor(pieceAt(pos));
-    currState().squares[pos.value()] = Piece::NONE;
-    currState().pieces[static_cast<int>(pieceType)] ^= posBB;
-    currState().colors[static_cast<int>(color)] ^= posBB;
+    Piece piece = pieceAt(pos);
+    currState().removePiece(pos);
+    //updates.pushRemove({piece, pos});
 }
 
-void Board::movePiece(Square src, Square dst)
+void Board::movePiece(Square src, Square dst/*, eval::EvalUpdates& updates*/)
 {
-    Bitboard srcBB = Bitboard::fromSquare(src);
-    Bitboard dstBB = Bitboard::fromSquare(dst);
-    Bitboard moveBB = srcBB | dstBB;
-    PieceType pieceType = getPieceType(pieceAt(src));
-    Color color = getPieceColor(pieceAt(src));
-
-
-    currState().squares[dst.value()] = currState().squares[src.value()];
-    currState().squares[src.value()] = Piece::NONE;
-    currState().pieces[static_cast<int>(pieceType)] ^= moveBB;
-    currState().colors[static_cast<int>(color)] ^= moveBB;
+    Piece piece = pieceAt(src);
+    currState().movePiece(src, dst);
+    //updates.pushRemove({piece, src});
+    //updates.pushAdd({piece, dst});
 }
