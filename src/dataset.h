@@ -3,6 +3,7 @@
 #include <fstream>
 #include <span>
 #include <vector>
+#include <array>
 
 struct Coefficient
 {
@@ -18,6 +19,7 @@ struct Position
     double wdl;
     double phase;
     double egScale;
+    std::array<uint8_t, 2> safetyScales;
 };
 
 struct Dataset

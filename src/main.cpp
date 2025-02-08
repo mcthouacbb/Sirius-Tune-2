@@ -25,11 +25,6 @@ int main()
         Dataset data = loadDataset(datasetFile);
 
         EvalParams params = tune(data, outFile);
-        for (auto& param : params)
-        {
-            param.mg = std::round(param.mg);
-            param.eg = std::round(param.eg);
-        }
         EvalFn::printEvalParamsExtracted(params, std::cout);
         EvalFn::printEvalParamsExtracted(params, outFile);
     }

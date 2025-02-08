@@ -53,12 +53,14 @@ Dataset loadDataset(std::ifstream& file)
         Board board;
         board.setToFen(std::string_view(line.begin(), line.begin() + sixthSpace));
 
-        auto [coeffBegin, coeffEnd, egScale] = eval.getCoefficients(board);
+        auto [coeffBegin, coeffEnd, safetyScales, egScale] = eval.getCoefficients(board);
 
         Position pos;
         pos.coeffBegin = coeffBegin;
         pos.coeffEnd = coeffEnd;
         pos.wdl = wdlResult;
+        pos.safetyScales[0] = safetyScales[0];
+        pos.safetyScales[1] = safetyScales[1];
         pos.phase =
             4 * board.pieces(PieceType::QUEEN).popcount() +
             2 * board.pieces(PieceType::ROOK).popcount() +
