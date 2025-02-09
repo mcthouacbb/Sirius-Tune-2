@@ -1179,7 +1179,6 @@ EvalParams extractMaterial(const EvalParams& params)
     for (auto& elem : rebalanced.safetyScales)
         elem.mg = std::round(elem.mg);
 
-
     std::array<std::array<int, 2>, 6> material = {};
 
     // psqts
@@ -1215,6 +1214,7 @@ EvalParams extractMaterial(const EvalParams& params)
         extracted.linear.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
     }
     extracted.linear.insert(extracted.linear.end(), rebalanced.linear.begin(), rebalanced.linear.end());
+    extracted.safetyScales = rebalanced.safetyScales;
     return extracted;
 }
 
