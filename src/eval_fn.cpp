@@ -48,7 +48,6 @@ struct Trace
     TraceElem unsafeBishopCheck;
     TraceElem unsafeRookCheck;
     TraceElem unsafeQueenCheck;
-    TraceElem kingAttackerWeight[4];
     TraceElem queenlessAttack;
     TraceElem kingAttacks;
     TraceElem weakKingRing;
@@ -213,8 +212,6 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
         if (Bitboard kingRingAtks = evalData.kingRing[them] & attacks; kingRingAtks.any())
         {
-            evalData.attackWeight[us] += KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)];
-            TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
             evalData.attackCount[us] += kingRingAtks.popcount();
             evalData.attackerCount[us]++;
         }
@@ -510,7 +507,6 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += UNSAFE_ROOK_CHECK * (rookChecks & ~safe).popcount();
     eval += UNSAFE_QUEEN_CHECK * (queenChecks & ~safe).popcount();
 
-    eval += evalData.attackWeight[us];
     eval += QUEENLESS_ATTACK * queenless;
     eval += KING_ATTACKS * attackCount;
 
@@ -692,8 +688,8 @@ std::tuple<size_t, size_t, std::array<int, 2>, double> EvalFn::getCoefficients(c
     addCoefficientArray(trace.ourPasserProximity, ParamType::NORMAL);
     addCoefficientArray(trace.theirPasserProximity, ParamType::NORMAL);
 
-    addCoefficientArray3D(trace.pawnStorm, ParamType::NORMAL);
-    addCoefficientArray2D(trace.pawnShield, ParamType::NORMAL);
+    addCoefficientArray3D(trace.pawnStorm, ParamType::SAFETY);
+    addCoefficientArray2D(trace.pawnShield, ParamType::SAFETY);
     addCoefficient(trace.safeKnightCheck, ParamType::SAFETY);
     addCoefficient(trace.safeBishopCheck, ParamType::SAFETY);
     addCoefficient(trace.safeRookCheck, ParamType::SAFETY);
@@ -702,7 +698,6 @@ std::tuple<size_t, size_t, std::array<int, 2>, double> EvalFn::getCoefficients(c
     addCoefficient(trace.unsafeBishopCheck, ParamType::SAFETY);
     addCoefficient(trace.unsafeRookCheck, ParamType::SAFETY);
     addCoefficient(trace.unsafeQueenCheck, ParamType::SAFETY);
-    addCoefficientArray(trace.kingAttackerWeight, ParamType::SAFETY);
     addCoefficient(trace.queenlessAttack, ParamType::SAFETY);
     addCoefficient(trace.kingAttacks, ParamType::SAFETY);
     addCoefficient(trace.weakKingRing, ParamType::SAFETY);
@@ -785,8 +780,8 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
 
-    addEvalParamArray3D(params, PAWN_STORM, ParamType::NORMAL);
-    addEvalParamArray2D(params, PAWN_SHIELD, ParamType::NORMAL);
+    addEvalParamArray3D(params, PAWN_STORM, ParamType::SAFETY);
+    addEvalParamArray2D(params, PAWN_SHIELD, ParamType::SAFETY);
     addEvalParam(params, SAFE_KNIGHT_CHECK, ParamType::SAFETY);
     addEvalParam(params, SAFE_BISHOP_CHECK, ParamType::SAFETY);
     addEvalParam(params, SAFE_ROOK_CHECK, ParamType::SAFETY);
@@ -795,7 +790,6 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, UNSAFE_BISHOP_CHECK, ParamType::SAFETY);
     addEvalParam(params, UNSAFE_ROOK_CHECK, ParamType::SAFETY);
     addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::SAFETY);
-    addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::SAFETY);
     addEvalParam(params, QUEENLESS_ATTACK, ParamType::SAFETY);
     addEvalParam(params, KING_ATTACKS, ParamType::SAFETY);
     addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
@@ -1065,10 +1059,6 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr PackedScore UNSAFE_QUEEN_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore KING_ATTACKER_WEIGHT[4] = ";
-    printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore QUEENLESS_ATTACK = ";

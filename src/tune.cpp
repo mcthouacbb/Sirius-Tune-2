@@ -137,12 +137,19 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
     double egBase = gradientBase - mgBase;
     if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
     {
-        gradients[params.linear.size() + pos.safetyScales[static_cast<int>(Color::WHITE)]].mg +=
-            trace.rawSafety[Color::WHITE].mg * mgBase +
-            trace.rawSafety[Color::WHITE].eg * egBase;
-        gradients[params.linear.size() + pos.safetyScales[static_cast<int>(Color::BLACK)]].mg -=
-            trace.rawSafety[Color::BLACK].mg * mgBase +
-            trace.rawSafety[Color::BLACK].eg * egBase;
+        // HACK for now: Make safetyScales[2] fixed to 128 / 128 = 1
+        if (pos.safetyScales[static_cast<int>(Color::WHITE)] != 2)
+        {
+            gradients[params.linear.size() + pos.safetyScales[static_cast<int>(Color::WHITE)]].mg +=
+                trace.rawSafety[Color::WHITE].mg * mgBase +
+                trace.rawSafety[Color::WHITE].eg * egBase;
+        }
+        if (pos.safetyScales[static_cast<int>(Color::BLACK)] != 2)
+        {
+            gradients[params.linear.size() + pos.safetyScales[static_cast<int>(Color::BLACK)]].mg -=
+                trace.rawSafety[Color::BLACK].mg * mgBase +
+                trace.rawSafety[Color::BLACK].eg * egBase;
+        }
     }
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
