@@ -49,6 +49,7 @@ struct Trace
     TraceElem unsafeRookCheck;
     TraceElem unsafeQueenCheck;
     TraceElem queenlessAttack;
+    TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks;
     TraceElem weakKingRing;
 
@@ -67,7 +68,6 @@ struct Trace
     TraceElem complexityPawnEndgame;
     TraceElem complexityOffset;
 
-    std::array<int, 2> safetyScales;
     double egScale;
 };
 
@@ -214,6 +214,8 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         {
             evalData.attackCount[us] += kingRingAtks.popcount();
             evalData.attackerCount[us]++;
+            evalData.attackWeight[us] += KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)];
+            TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
         }
 
         if (piece == PieceType::BISHOP && (attacks & CENTER_SQUARES).multiple())
@@ -508,15 +510,12 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += UNSAFE_QUEEN_CHECK * (queenChecks & ~safe).popcount();
 
     eval += QUEENLESS_ATTACK * queenless;
+    eval += evalData.attackWeight[us];
     eval += KING_ATTACKS * attackCount;
 
     eval += WEAK_KING_RING * weakSquares;
 
-    int scaleIdx = std::min(evalData.attackerCount[us], 5);
-    trace.safetyScales[static_cast<int>(us)] = scaleIdx;
-    int scale = SAFETY_SCALE_ATTACKERS[scaleIdx];
-
-    PackedScore safety{eval.mg() * scale / 128, eval.eg() * scale / 128};
+    PackedScore safety{eval.mg() / 128, eval.eg() / 128};
     return safety + kingPawnSafety;
 }
 
@@ -660,7 +659,7 @@ void EvalFn::reset()
     m_TraceIdx = 0;
 }
 
-std::tuple<size_t, size_t, std::array<int, 2>, double> EvalFn::getCoefficients(const Board& board)
+std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
 {
     reset();
     size_t pos = m_Coefficients.size();
@@ -699,6 +698,7 @@ std::tuple<size_t, size_t, std::array<int, 2>, double> EvalFn::getCoefficients(c
     addCoefficient(trace.unsafeRookCheck, ParamType::SAFETY);
     addCoefficient(trace.unsafeQueenCheck, ParamType::SAFETY);
     addCoefficient(trace.queenlessAttack, ParamType::SAFETY);
+    addCoefficientArray(trace.kingAttackerWeight, ParamType::SAFETY);
     addCoefficient(trace.kingAttacks, ParamType::SAFETY);
     addCoefficient(trace.weakKingRing, ParamType::SAFETY);
 
@@ -717,7 +717,7 @@ std::tuple<size_t, size_t, std::array<int, 2>, double> EvalFn::getCoefficients(c
     addCoefficient(trace.complexityPawnEndgame, ParamType::COMPLEXITY);
     addCoefficient(trace.complexityOffset, ParamType::COMPLEXITY);
 
-    return {pos, m_Coefficients.size(), trace.safetyScales, trace.egScale};
+    return {pos, m_Coefficients.size(), trace.egScale};
 }
 
 template<typename T>
@@ -750,8 +750,6 @@ void addEvalParamArray3D(EvalParams& params, const T& t, ParamType type)
 EvalParams EvalFn::getInitialParams()
 {
     EvalParams params;
-    for (int i = 0; i < 6; i++)
-        params.safetyScales[i].mg = SAFETY_SCALE_ATTACKERS[i];
     addEvalParamArray2D(params, PSQT, ParamType::NORMAL);
     for (int i = 0; i < 6; i++)
         for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
@@ -791,6 +789,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, UNSAFE_ROOK_CHECK, ParamType::SAFETY);
     addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::SAFETY);
     addEvalParam(params, QUEENLESS_ATTACK, ParamType::SAFETY);
+    addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::SAFETY);
     addEvalParam(params, KING_ATTACKS, ParamType::SAFETY);
     addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
 
@@ -1065,6 +1064,10 @@ void printRestParams(PrintState& state)
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
+    state.ss << "constexpr PackedScore KING_ATTACKER_WEIGHT[4] = ";
+    printArray<ALIGN_SIZE>(state, 4);
+    state.ss << ";\n";
+
     state.ss << "constexpr PackedScore KING_ATTACKS = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
@@ -1072,13 +1075,6 @@ void printRestParams(PrintState& state)
     state.ss << "constexpr PackedScore WEAK_KING_RING = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
-
-    state.ss << '\n';
-
-    state.ss << "constexpr int SAFETY_SCALE_ATTACKERS[6] = {" << state.params.safetyScales[0].mg;
-    for (int i = 1; i < 6; i++)
-        state.ss << ", " << state.params.safetyScales[i].mg;
-    state.ss << "};\n";
 
     state.ss << '\n';
 
@@ -1178,9 +1174,6 @@ EvalParams extractMaterial(const EvalParams& params)
         elem.eg = std::round(elem.eg);
     }
 
-    for (auto& elem : rebalanced.safetyScales)
-        elem.mg = std::round(elem.mg);
-
     std::array<std::array<int, 2>, 6> material = {};
 
     // psqts
@@ -1216,7 +1209,6 @@ EvalParams extractMaterial(const EvalParams& params)
         extracted.linear.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
     }
     extracted.linear.insert(extracted.linear.end(), rebalanced.linear.begin(), rebalanced.linear.end());
-    extracted.safetyScales = rebalanced.safetyScales;
     return extracted;
 }
 

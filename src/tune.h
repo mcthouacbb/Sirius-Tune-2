@@ -33,25 +33,20 @@ struct EvalParams
 {
     EvalParam& operator[](size_t idx)
     {
-        if (idx >= linear.size())
-            return safetyScales[idx - linear.size()];
         return linear[idx];
     }
 
     const EvalParam& operator[](size_t idx) const
     {
-        if (idx >= linear.size())
-            return safetyScales[idx - linear.size()];
         return linear[idx];
     }
 
     size_t totalSize() const
     {
-        return linear.size() + safetyScales.size();
+        return linear.size();
     }
 
     std::vector<EvalParam> linear;
-    std::array<EvalParam, 6> safetyScales;
 };
 
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params);

@@ -11,7 +11,7 @@ public:
     EvalFn(std::vector<Coefficient>& coefficients);
 
     void reset();
-    std::tuple<size_t, size_t, std::array<int, 2>, double> getCoefficients(const Board& board);
+    std::tuple<size_t, size_t, double> getCoefficients(const Board& board);
     static EvalParams getInitialParams();
     static EvalParams getMaterialParams();
     static EvalParams getKParams();
