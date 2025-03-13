@@ -52,6 +52,7 @@ struct Trace
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks;
     TraceElem weakKingRing;
+    TraceElem safetyOffset;
 
     TraceElem minorBehindPawn;
     TraceElem knightOutpost;
@@ -499,6 +500,8 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     int weakSquares = weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount();
     TRACE_ADD(weakKingRing, weakSquares);
 
+    TRACE_INC(safetyOffset);
+
     eval += SAFE_KNIGHT_CHECK * (knightChecks & safe).popcount();
     eval += SAFE_BISHOP_CHECK * (bishopChecks & safe).popcount();
     eval += SAFE_ROOK_CHECK * (rookChecks & safe).popcount();
@@ -514,6 +517,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += KING_ATTACKS * attackCount;
 
     eval += WEAK_KING_RING * weakSquares;
+    eval += SAFETY_OFFSET;
 
     PackedScore safety{eval.mg() / 128, eval.eg() / 128};
     return safety + kingPawnSafety;
@@ -701,6 +705,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.kingAttackerWeight, ParamType::SAFETY);
     addCoefficient(trace.kingAttacks, ParamType::SAFETY);
     addCoefficient(trace.weakKingRing, ParamType::SAFETY);
+    addCoefficient(trace.safetyOffset, ParamType::SAFETY);
 
     addCoefficient(trace.minorBehindPawn, ParamType::NORMAL);
     addCoefficient(trace.knightOutpost, ParamType::NORMAL);
@@ -792,6 +797,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::SAFETY);
     addEvalParam(params, KING_ATTACKS, ParamType::SAFETY);
     addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
+    addEvalParam(params, SAFETY_OFFSET, ParamType::SAFETY);
 
     addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
     addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
@@ -1073,6 +1079,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore WEAK_KING_RING = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore SAFETY_OFFSET = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
