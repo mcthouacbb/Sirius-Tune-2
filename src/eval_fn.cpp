@@ -48,9 +48,11 @@ struct Trace
     TraceElem unsafeBishopCheck;
     TraceElem unsafeRookCheck;
     TraceElem unsafeQueenCheck;
+    TraceElem queenlessAttack;
     TraceElem kingAttackerWeight[4];
-    TraceElem kingAttacks[14];
-    TraceElem weakKingRing[17];
+    TraceElem kingAttacks;
+    TraceElem weakKingRing;
+    TraceElem safetyOffset;
 
     TraceElem minorBehindPawn;
     TraceElem knightOutpost;
@@ -224,8 +226,6 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
     return eval;
 }
-
-
 
 template<Color us>
 PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
@@ -448,6 +448,11 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
     return eval;
 }
 
+constexpr int safetyAdjustment(int value)
+{
+    return (value + std::max(value, 0) * value / 128) / 8;
+}
+
 template<Color us>
 PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
@@ -485,14 +490,19 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     TRACE_ADD(unsafeRookCheck, (rookChecks & ~safe).popcount());
     TRACE_ADD(unsafeQueenCheck, (queenChecks & ~safe).popcount());
 
-    int attackCount = std::min(evalData.attackCount[us], 13);
-    TRACE_INC(kingAttacks[attackCount]);
+    bool queenless = board.pieces(us, PieceType::QUEEN).empty();
+    TRACE_ADD(queenlessAttack, queenless);
+
+    int attackCount = evalData.attackCount[us];
+    TRACE_ADD(kingAttacks, attackCount);
 
     Bitboard weakKingRing = (evalData.kingRing[them] & weak);
     Bitboard weakAttacked = weakKingRing & evalData.attacked[us];
     Bitboard weakAttacked2 = weakAttacked & evalData.attackedBy2[us];
-    int weakSquares = std::min(weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount(), 16u);
-    TRACE_INC(weakKingRing[weakSquares]);
+    int weakSquares = weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount();
+    TRACE_ADD(weakKingRing, weakSquares);
+
+    TRACE_INC(safetyOffset);
 
     eval += SAFE_KNIGHT_CHECK * (knightChecks & safe).popcount();
     eval += SAFE_BISHOP_CHECK * (bishopChecks & safe).popcount();
@@ -504,12 +514,15 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += UNSAFE_ROOK_CHECK * (rookChecks & ~safe).popcount();
     eval += UNSAFE_QUEEN_CHECK * (queenChecks & ~safe).popcount();
 
+    eval += QUEENLESS_ATTACK * queenless;
     eval += evalData.attackWeight[us];
-    eval += KING_ATTACKS[attackCount];
+    eval += KING_ATTACKS * attackCount;
 
-    eval += WEAK_KING_RING[weakSquares];
+    eval += WEAK_KING_RING * weakSquares;
+    eval += SAFETY_OFFSET;
 
-    return eval;
+    PackedScore safety{safetyAdjustment(eval.mg()), evalAdjustment(eval.eg())};
+    return safety;
 }
 
 PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStructure, PackedScore eval, Trace& trace)
@@ -657,57 +670,59 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     reset();
     size_t pos = m_Coefficients.size();
     Trace trace = getTrace(board);
-    addCoefficientArray2D(trace.psqt);
+    addCoefficientArray2D(trace.psqt, ParamType::NORMAL);
 
-    addCoefficientArray2D(trace.mobility);
+    addCoefficientArray2D(trace.mobility, ParamType::NORMAL);
 
-    addCoefficientArray(trace.threatByPawn);
-    addCoefficientArray2D(trace.threatByKnight);
-    addCoefficientArray2D(trace.threatByBishop);
-    addCoefficientArray2D(trace.threatByRook);
-    addCoefficientArray2D(trace.threatByQueen);
-    addCoefficientArray(trace.threatByKing);
-    addCoefficient(trace.pushThreat);
+    addCoefficientArray(trace.threatByPawn, ParamType::NORMAL);
+    addCoefficientArray2D(trace.threatByKnight, ParamType::NORMAL);
+    addCoefficientArray2D(trace.threatByBishop, ParamType::NORMAL);
+    addCoefficientArray2D(trace.threatByRook, ParamType::NORMAL);
+    addCoefficientArray2D(trace.threatByQueen, ParamType::NORMAL);
+    addCoefficientArray(trace.threatByKing, ParamType::NORMAL);
+    addCoefficient(trace.pushThreat, ParamType::NORMAL);
 
-    addCoefficientArray(trace.isolatedPawn);
-    addCoefficientArray(trace.doubledPawn);
-    addCoefficientArray(trace.backwardsPawn);
-    addCoefficientArray(trace.pawnPhalanx);
-    addCoefficientArray(trace.defendedPawn);
-    addCoefficientArray2D(trace.candidatePasser);
+    addCoefficientArray(trace.isolatedPawn, ParamType::NORMAL);
+    addCoefficientArray(trace.doubledPawn, ParamType::NORMAL);
+    addCoefficientArray(trace.backwardsPawn, ParamType::NORMAL);
+    addCoefficientArray(trace.pawnPhalanx, ParamType::NORMAL);
+    addCoefficientArray(trace.defendedPawn, ParamType::NORMAL);
+    addCoefficientArray2D(trace.candidatePasser, ParamType::NORMAL);
 
-    addCoefficientArray3D(trace.passedPawn);
-    addCoefficientArray(trace.ourPasserProximity);
-    addCoefficientArray(trace.theirPasserProximity);
+    addCoefficientArray3D(trace.passedPawn, ParamType::NORMAL);
+    addCoefficientArray(trace.ourPasserProximity, ParamType::NORMAL);
+    addCoefficientArray(trace.theirPasserProximity, ParamType::NORMAL);
 
-    addCoefficientArray3D(trace.pawnStorm);
-    addCoefficientArray2D(trace.pawnShield);
-    addCoefficient(trace.safeKnightCheck);
-    addCoefficient(trace.safeBishopCheck);
-    addCoefficient(trace.safeRookCheck);
-    addCoefficient(trace.safeQueenCheck);
-    addCoefficient(trace.unsafeKnightCheck);
-    addCoefficient(trace.unsafeBishopCheck);
-    addCoefficient(trace.unsafeRookCheck);
-    addCoefficient(trace.unsafeQueenCheck);
-    addCoefficientArray(trace.kingAttackerWeight);
-    addCoefficientArray(trace.kingAttacks);
-    addCoefficientArray(trace.weakKingRing);
+    addCoefficientArray3D(trace.pawnStorm, ParamType::SAFETY);
+    addCoefficientArray2D(trace.pawnShield, ParamType::SAFETY);
+    addCoefficient(trace.safeKnightCheck, ParamType::SAFETY);
+    addCoefficient(trace.safeBishopCheck, ParamType::SAFETY);
+    addCoefficient(trace.safeRookCheck, ParamType::SAFETY);
+    addCoefficient(trace.safeQueenCheck, ParamType::SAFETY);
+    addCoefficient(trace.unsafeKnightCheck, ParamType::SAFETY);
+    addCoefficient(trace.unsafeBishopCheck, ParamType::SAFETY);
+    addCoefficient(trace.unsafeRookCheck, ParamType::SAFETY);
+    addCoefficient(trace.unsafeQueenCheck, ParamType::SAFETY);
+    addCoefficient(trace.queenlessAttack, ParamType::SAFETY);
+    addCoefficientArray(trace.kingAttackerWeight, ParamType::SAFETY);
+    addCoefficient(trace.kingAttacks, ParamType::SAFETY);
+    addCoefficient(trace.weakKingRing, ParamType::SAFETY);
+    addCoefficient(trace.safetyOffset, ParamType::SAFETY);
 
-    addCoefficient(trace.minorBehindPawn);
-    addCoefficient(trace.knightOutpost);
-    addCoefficientArray(trace.bishopPawns);
-    addCoefficient(trace.bishopPair);
-    addCoefficient(trace.longDiagBishop);
-    addCoefficientArray(trace.openRook);
+    addCoefficient(trace.minorBehindPawn, ParamType::NORMAL);
+    addCoefficient(trace.knightOutpost, ParamType::NORMAL);
+    addCoefficientArray(trace.bishopPawns, ParamType::NORMAL);
+    addCoefficient(trace.bishopPair, ParamType::NORMAL);
+    addCoefficient(trace.longDiagBishop, ParamType::NORMAL);
+    addCoefficientArray(trace.openRook, ParamType::NORMAL);
 
-    addCoefficient(trace.tempo);
+    addCoefficient(trace.tempo, ParamType::NORMAL);
 
-    addCoefficient(trace.complexityPawns);
-    addCoefficient(trace.complexityPassers);
-    addCoefficient(trace.complexityPawnsBothSides);
-    addCoefficient(trace.complexityPawnEndgame);
-    addCoefficient(trace.complexityOffset);
+    addCoefficient(trace.complexityPawns, ParamType::COMPLEXITY);
+    addCoefficient(trace.complexityPassers, ParamType::COMPLEXITY);
+    addCoefficient(trace.complexityPawnsBothSides, ParamType::COMPLEXITY);
+    addCoefficient(trace.complexityPawnEndgame, ParamType::COMPLEXITY);
+    addCoefficient(trace.complexityOffset, ParamType::COMPLEXITY);
 
     return {pos, m_Coefficients.size(), trace.egScale};
 }
@@ -715,7 +730,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
 template<typename T>
 void addEvalParam(EvalParams& params, const T& t, ParamType type)
 {
-    params.push_back({type, static_cast<double>(t.mg()), static_cast<double>(t.eg())});
+    params.linear.push_back({type, static_cast<double>(t.mg()), static_cast<double>(t.eg())});
 }
 
 template<typename T>
@@ -770,19 +785,21 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
 
-    addEvalParamArray3D(params, PAWN_STORM, ParamType::NORMAL);
-    addEvalParamArray2D(params, PAWN_SHIELD, ParamType::NORMAL);
-    addEvalParam(params, SAFE_KNIGHT_CHECK, ParamType::NORMAL);
-    addEvalParam(params, SAFE_BISHOP_CHECK, ParamType::NORMAL);
-    addEvalParam(params, SAFE_ROOK_CHECK, ParamType::NORMAL);
-    addEvalParam(params, SAFE_QUEEN_CHECK, ParamType::NORMAL);
-    addEvalParam(params, UNSAFE_KNIGHT_CHECK, ParamType::NORMAL);
-    addEvalParam(params, UNSAFE_BISHOP_CHECK, ParamType::NORMAL);
-    addEvalParam(params, UNSAFE_ROOK_CHECK, ParamType::NORMAL);
-    addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::NORMAL);
-    addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::NORMAL);
-    addEvalParamArray(params, KING_ATTACKS, ParamType::NORMAL);
-    addEvalParamArray(params, WEAK_KING_RING, ParamType::NORMAL);
+    addEvalParamArray3D(params, PAWN_STORM, ParamType::SAFETY);
+    addEvalParamArray2D(params, PAWN_SHIELD, ParamType::SAFETY);
+    addEvalParam(params, SAFE_KNIGHT_CHECK, ParamType::SAFETY);
+    addEvalParam(params, SAFE_BISHOP_CHECK, ParamType::SAFETY);
+    addEvalParam(params, SAFE_ROOK_CHECK, ParamType::SAFETY);
+    addEvalParam(params, SAFE_QUEEN_CHECK, ParamType::SAFETY);
+    addEvalParam(params, UNSAFE_KNIGHT_CHECK, ParamType::SAFETY);
+    addEvalParam(params, UNSAFE_BISHOP_CHECK, ParamType::SAFETY);
+    addEvalParam(params, UNSAFE_ROOK_CHECK, ParamType::SAFETY);
+    addEvalParam(params, UNSAFE_QUEEN_CHECK, ParamType::SAFETY);
+    addEvalParam(params, QUEENLESS_ATTACK, ParamType::SAFETY);
+    addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::SAFETY);
+    addEvalParam(params, KING_ATTACKS, ParamType::SAFETY);
+    addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
+    addEvalParam(params, SAFETY_OFFSET, ParamType::SAFETY);
 
     addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
     addEvalParam(params, KNIGHT_OUTPOST, ParamType::NORMAL);
@@ -804,7 +821,7 @@ EvalParams EvalFn::getInitialParams()
 EvalParams EvalFn::getMaterialParams()
 {
     EvalParams params = getInitialParams();
-    for (auto& param : params)
+    for (auto& param : params.linear)
         param.mg = param.eg = 0;
 
     for (int i = 0; i < 6; i++)
@@ -823,7 +840,7 @@ EvalParams EvalFn::getKParams()
     };
 
     EvalParams params = getInitialParams();
-    for (auto& param : params)
+    for (auto& param : params.linear)
         param.mg = param.eg = 0;
 
     for (int i = 0; i < 6; i++)
@@ -1051,16 +1068,24 @@ void printRestParams(PrintState& state)
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
+    state.ss << "constexpr PackedScore QUEENLESS_ATTACK = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
     state.ss << "constexpr PackedScore KING_ATTACKER_WEIGHT[4] = ";
     printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KING_ATTACKS[14] = ";
-    printArray<ALIGN_SIZE>(state, 14);
+    state.ss << "constexpr PackedScore KING_ATTACKS = ";
+    printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore WEAK_KING_RING[17] = ";
-    printArray<ALIGN_SIZE>(state, 17);
+    state.ss << "constexpr PackedScore WEAK_KING_RING = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore SAFETY_OFFSET = ";
+    printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << '\n';
@@ -1155,7 +1180,7 @@ void rebalance(std::array<int, 2> factor, std::array<int, 2>& materialValue, Eva
 EvalParams extractMaterial(const EvalParams& params)
 {
     EvalParams rebalanced = params;
-    for (auto& elem : rebalanced)
+    for (auto& elem : rebalanced.linear)
     {
         elem.mg = std::round(elem.mg);
         elem.eg = std::round(elem.eg);
@@ -1185,7 +1210,7 @@ EvalParams extractMaterial(const EvalParams& params)
     rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[3]), 28), material[4], rebalanced, TRACE_OFFSET(mobility[3]), 28);
 
     // king attacks
-    rebalance(avgValue(rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks)), material[5], rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks));
+    // rebalance(avgValue(rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks)), material[5], rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks));
 
     // bishop pawns
     rebalance(avgValue(rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns)), material[2], rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns));
@@ -1193,9 +1218,9 @@ EvalParams extractMaterial(const EvalParams& params)
     EvalParams extracted;
     for (int i = 0; i < 5; i++)
     {
-        extracted.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
+        extracted.linear.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]), static_cast<double>(material[i][1])});
     }
-    extracted.insert(extracted.end(), rebalanced.begin(), rebalanced.end());
+    extracted.linear.insert(extracted.linear.end(), rebalanced.linear.begin(), rebalanced.linear.end());
     return extracted;
 }
 

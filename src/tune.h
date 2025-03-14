@@ -4,13 +4,15 @@
 #include <cmath>
 #include <span>
 #include <fstream>
+#include <array>
 #include "dataset.h"
 #include "thread_pool.h"
 
 enum class ParamType
 {
     NORMAL,
-    COMPLEXITY
+    COMPLEXITY,
+    SAFETY
 };
 
 struct EvalParam
@@ -27,7 +29,25 @@ struct Gradient
 };
 
 using Coeffs = std::span<const Coefficient>;
-using EvalParams = std::vector<EvalParam>;
+struct EvalParams
+{
+    EvalParam& operator[](size_t idx)
+    {
+        return linear[idx];
+    }
+
+    const EvalParam& operator[](size_t idx) const
+    {
+        return linear[idx];
+    }
+
+    size_t totalSize() const
+    {
+        return linear.size();
+    }
+
+    std::vector<EvalParam> linear;
+};
 
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params);
 

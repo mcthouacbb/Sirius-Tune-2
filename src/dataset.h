@@ -3,6 +3,7 @@
 #include <fstream>
 #include <span>
 #include <vector>
+#include <array>
 
 struct Coefficient
 {

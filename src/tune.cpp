@@ -10,6 +10,26 @@ double sigmoid(double x, double k)
     return 1.0 / (1 + exp(-x * k));
 }
 
+double safetyFnMg(double raw)
+{
+    return raw / 8.0 + std::max(raw, 0.0) * raw / 1024;
+}
+
+double safetyFnEg(double raw)
+{
+    return raw / 8.0 + std::max(raw, 0.0) * raw / 1024;
+}
+
+double safetyDerivMg(double raw)
+{
+    return 1.0 / 8.0 + 2.0 * std::max(raw, 0.0) / 1024;
+}
+
+double safetyDerivEg(double raw)
+{
+    return 1.0 / 8.0 + 2.0 * std::max(raw, 0.0) / 1024;
+}
+
 struct EvalTrace
 {
     struct TraceElem
@@ -18,6 +38,8 @@ struct EvalTrace
         double eg;
     };
     TraceElem normal;
+    ColorArray<TraceElem> rawSafety;
+    TraceElem nonComplexity;
     TraceElem complexity;
 };
 
@@ -37,11 +59,24 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
             // complexity has no white/black separation, only white part is used
             trace.complexity.eg += param.eg * coeff.white;
         }
+        else if (param.type == ParamType::SAFETY)
+        {
+            trace.rawSafety[Color::WHITE].mg += param.mg * coeff.white;
+            trace.rawSafety[Color::WHITE].eg += param.eg * coeff.white;
+            trace.rawSafety[Color::BLACK].mg += param.mg * coeff.black;
+            trace.rawSafety[Color::BLACK].eg += param.eg * coeff.black;
+        }
     }
 
     double mg = 0, eg = 0;
     mg += trace.normal.mg;
     eg += trace.normal.eg;
+    mg += safetyFnMg(trace.rawSafety[Color::WHITE].mg);
+    mg -= safetyFnMg(trace.rawSafety[Color::BLACK].mg);
+    eg += safetyFnEg(trace.rawSafety[Color::WHITE].eg);
+    eg -= safetyFnEg(trace.rawSafety[Color::BLACK].eg);
+    trace.nonComplexity.mg = mg;
+    trace.nonComplexity.eg = eg;
     eg += ((eg > 0) - (eg < 0)) * std::max(-std::abs(eg), trace.complexity.eg);
 
     return (mg * pos.phase + eg * (1.0 - pos.phase));
@@ -126,14 +161,27 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
         ParamType type = params[coeff.index].type;
         if (type == ParamType::NORMAL)
         {
-            if (trace.complexity.mg >= -std::abs(trace.normal.mg))
+            if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
                 gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
-            if (trace.complexity.eg >= -std::abs(trace.normal.eg))
+            if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
                 gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
+        }
+        else if (type == ParamType::SAFETY)
+        {
+            if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
+            {
+                gradients[coeff.index].mg += coeff.white * mgBase * safetyDerivMg(trace.rawSafety[Color::WHITE].mg);
+                gradients[coeff.index].mg -= coeff.black * mgBase * safetyDerivMg(trace.rawSafety[Color::BLACK].mg);
+            }
+            if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
+            {
+                gradients[coeff.index].eg += coeff.white * egBase * pos.egScale * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
+                gradients[coeff.index].eg -= coeff.black * egBase * pos.egScale * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
+            }
         }
         else if (type == ParamType::COMPLEXITY)
         {
-            if (trace.complexity.eg >= -std::abs(trace.normal.eg))
+            if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
                 gradients[coeff.index].eg += egBase * coeff.white * pos.egScale * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
     }
@@ -182,7 +230,7 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     std::cout << "Final k value: " << kValue << std::endl;
     outFile << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)
-        for (auto& param : params)
+        for (auto& param : params.linear)
             param.mg = param.eg = 0;
     else if constexpr (TUNE_FROM_MATERIAL)
         params = EvalFn::getMaterialParams();
@@ -192,9 +240,9 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     constexpr double BETA1 = 0.9, BETA2 = 0.999;
     constexpr double EPSILON = 1e-8;
 
-    std::vector<Gradient> momentum(params.size(), {0, 0});
-    std::vector<Gradient> velocity(params.size(), {0, 0});
-    std::vector<Gradient> gradient(params.size(), {0, 0});
+    std::vector<Gradient> momentum(params.totalSize(), {0, 0});
+    std::vector<Gradient> velocity(params.totalSize(), {0, 0});
+    std::vector<Gradient> gradient(params.totalSize(), {0, 0});
 
     auto t1 = std::chrono::steady_clock::now();
     auto startTime = t1;
