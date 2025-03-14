@@ -80,7 +80,6 @@ struct EvalData
     ColorArray<PieceTypeArray<Bitboard>> attackedBy;
     ColorArray<Bitboard> kingRing;
     ColorArray<PackedScore> attackWeight;
-    ColorArray<int> attackerCount;
     ColorArray<int> attackCount;
 };
 
@@ -213,10 +212,9 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
         if (Bitboard kingRingAtks = evalData.kingRing[them] & attacks; kingRingAtks.any())
         {
-            evalData.attackCount[us] += kingRingAtks.popcount();
-            evalData.attackerCount[us]++;
             evalData.attackWeight[us] += KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)];
             TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
+            evalData.attackCount[us] += kingRingAtks.popcount();
         }
 
         if (piece == PieceType::BISHOP && (attacks & CENTER_SQUARES).multiple())
@@ -450,6 +448,11 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
     return eval;
 }
 
+constexpr int safetyAdjustment(int value)
+{
+    return (value + std::max(value, 0) * value / 128) / 8;
+}
+
 template<Color us>
 PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
@@ -459,13 +462,12 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
     Square theirKing = board.kingSq(them);
 
-    PackedScore kingPawnSafety{0, 0};
     PackedScore eval{0, 0};
 
     uint32_t leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
     uint32_t rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
     for (uint32_t file = leftFile; file <= rightFile; file++)
-        kingPawnSafety += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
+        eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
 
     Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
     Bitboard bishopCheckSquares = attacks::bishopAttacks(theirKing, board.allPieces());
@@ -519,8 +521,8 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += WEAK_KING_RING * weakSquares;
     eval += SAFETY_OFFSET;
 
-    PackedScore safety{eval.mg() / 128, eval.eg() / 128};
-    return safety + kingPawnSafety;
+    PackedScore safety{safetyAdjustment(eval.mg()), evalAdjustment(eval.eg())};
+    return safety;
 }
 
 PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStructure, PackedScore eval, Trace& trace)
