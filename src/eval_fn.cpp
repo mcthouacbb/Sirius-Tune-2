@@ -521,7 +521,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += WEAK_KING_RING * weakSquares;
     eval += SAFETY_OFFSET;
 
-    PackedScore safety{safetyAdjustment(eval.mg()), evalAdjustment(eval.eg())};
+    PackedScore safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
     return safety;
 }
 
