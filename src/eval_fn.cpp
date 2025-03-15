@@ -497,9 +497,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     TRACE_ADD(kingAttacks, attackCount);
 
     Bitboard weakKingRing = (evalData.kingRing[them] & weak);
-    Bitboard weakAttacked = weakKingRing & evalData.attacked[us];
-    Bitboard weakAttacked2 = weakAttacked & evalData.attackedBy2[us];
-    int weakSquares = weakKingRing.popcount() + weakAttacked.popcount() + weakAttacked2.popcount();
+    int weakSquares = weakKingRing.popcount();
     TRACE_ADD(weakKingRing, weakSquares);
 
     TRACE_INC(safetyOffset);
