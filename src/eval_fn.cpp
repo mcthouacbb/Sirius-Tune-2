@@ -52,6 +52,8 @@ struct Trace
     TraceElem kingAttackerWeight[4];
     TraceElem kingAttacks;
     TraceElem weakKingRing;
+    TraceElem kingFlankAttacks[2];
+    TraceElem kingFlankDefenses[2];
     TraceElem safetyOffset;
 
     TraceElem minorBehindPawn;
@@ -81,6 +83,7 @@ struct EvalData
     ColorArray<Bitboard> kingRing;
     ColorArray<PackedScore> attackWeight;
     ColorArray<int> attackCount;
+    ColorArray<Bitboard> kingFlank;
 };
 
 struct PawnStructure
@@ -517,6 +520,20 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     eval += KING_ATTACKS * attackCount;
 
     eval += WEAK_KING_RING * weakSquares;
+
+    Bitboard flankAttacks = evalData.kingFlank[them] & evalData.attacked[us];
+    Bitboard flankAttacks2 = evalData.kingFlank[them] & evalData.attackedBy2[us];
+    Bitboard flankDefenses = evalData.kingFlank[them] & evalData.attacked[them];
+    Bitboard flankDefenses2 = evalData.kingFlank[them] & evalData.attackedBy2[them];
+
+    eval += flankAttacks.popcount() * KING_FLANK_ATTACKS[0] + flankAttacks2.popcount() * KING_FLANK_ATTACKS[1];
+    eval += flankAttacks.popcount() * KING_FLANK_DEFENSES[0] + flankDefenses2.popcount() * KING_FLANK_DEFENSES[1];
+    
+    TRACE_ADD(kingFlankAttacks[0], flankAttacks.popcount());
+    TRACE_ADD(kingFlankAttacks[1], flankAttacks2.popcount());
+    TRACE_ADD(kingFlankDefenses[0], flankDefenses.popcount());
+    TRACE_ADD(kingFlankDefenses[1], flankDefenses2.popcount());
+
     eval += SAFETY_OFFSET;
 
     PackedScore safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
@@ -571,6 +588,8 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
         evalData.kingRing[us] |= evalData.kingRing[us].west();
     if (FILE_A_BB.has(ourKing))
         evalData.kingRing[us] |= evalData.kingRing[us].east();
+
+    evalData.kingFlank[us] = attacks::kingFlank(us, ourKing.file());
 }
 
 PackedScore evaluatePsqt(const Board& board, Trace& trace)
@@ -705,6 +724,8 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.kingAttackerWeight, ParamType::SAFETY);
     addCoefficient(trace.kingAttacks, ParamType::SAFETY);
     addCoefficient(trace.weakKingRing, ParamType::SAFETY);
+    addCoefficientArray(trace.kingFlankAttacks, ParamType::SAFETY);
+    addCoefficientArray(trace.kingFlankDefenses, ParamType::SAFETY);
     addCoefficient(trace.safetyOffset, ParamType::SAFETY);
 
     addCoefficient(trace.minorBehindPawn, ParamType::NORMAL);
@@ -797,6 +818,8 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, KING_ATTACKER_WEIGHT, ParamType::SAFETY);
     addEvalParam(params, KING_ATTACKS, ParamType::SAFETY);
     addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
+    addEvalParamArray(params, KING_FLANK_ATTACKS, ParamType::SAFETY);
+    addEvalParamArray(params, KING_FLANK_DEFENSES, ParamType::SAFETY);
     addEvalParam(params, SAFETY_OFFSET, ParamType::SAFETY);
 
     addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
@@ -1080,6 +1103,14 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr PackedScore WEAK_KING_RING = ";
     printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore KING_FLANK_ATTACKS[2] = ";
+    printArray<ALIGN_SIZE>(state, 2);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore KING_FLANK_DEFENSES[2] = ";
+    printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore SAFETY_OFFSET = ";

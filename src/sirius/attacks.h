@@ -39,6 +39,7 @@ struct AttackData
 
     MultiArray<Bitboard, 2, 64> passedPawnMasks;
     std::array<Bitboard, 64> isolatedPawnMasks;
+    MultiArray<Bitboard, 2, 8> kingFlanks;
 
     MultiArray<Bitboard, 2, 64> pawnAttacks;
     std::array<Bitboard, 64> kingAttacks;
@@ -167,6 +168,11 @@ inline Bitboard passedPawnMask(Color color, Square square)
 inline Bitboard isolatedPawnMask(Square square)
 {
     return attackData.isolatedPawnMasks[square.value()];
+}
+
+inline Bitboard kingFlank(Color color, int file)
+{
+    return attackData.kingFlanks[static_cast<int>(color)][file];
 }
 
 inline Bitboard pawnAttacks(Color color, Square square)
