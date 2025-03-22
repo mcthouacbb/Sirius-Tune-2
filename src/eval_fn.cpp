@@ -527,7 +527,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
     Bitboard flankDefenses2 = evalData.kingFlank[them] & evalData.attackedBy2[them];
 
     eval += flankAttacks.popcount() * KING_FLANK_ATTACKS[0] + flankAttacks2.popcount() * KING_FLANK_ATTACKS[1];
-    eval += flankAttacks.popcount() * KING_FLANK_DEFENSES[0] + flankDefenses2.popcount() * KING_FLANK_DEFENSES[1];
+    eval += flankDefenses.popcount() * KING_FLANK_DEFENSES[0] + flankDefenses2.popcount() * KING_FLANK_DEFENSES[1];
     
     TRACE_ADD(kingFlankAttacks[0], flankAttacks.popcount());
     TRACE_ADD(kingFlankAttacks[1], flankAttacks2.popcount());
