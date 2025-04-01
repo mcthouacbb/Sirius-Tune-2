@@ -25,6 +25,9 @@ struct Trace
     TraceElem threatByRook[2][6];
     TraceElem threatByQueen[2][6];
     TraceElem threatByKing[6];
+    TraceElem knightHitQueen;
+    TraceElem bishopHitQueen;
+    TraceElem rookHitQueen;
     TraceElem pushThreat;
 
     TraceElem isolatedPawn[8];
@@ -419,6 +422,27 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     Bitboard pushThreats = attacks::pawnAttacks<us>(pushes & safe) & nonPawnEnemies;
     eval += PUSH_THREAT * pushThreats.popcount();
     TRACE_ADD(pushThreat, pushThreats.popcount());
+    
+    Bitboard oppQueens = board.pieces(them, PieceType::QUEEN);
+    if (oppQueens.one())
+    {
+        Square oppQueen = oppQueens.lsb();
+        Bitboard knightHits = attacks::knightAttacks(oppQueen);
+        Bitboard bishopHits = attacks::bishopAttacks(oppQueen, board.allPieces());
+        Bitboard rookHits = attacks::rookAttacks(oppQueen, board.allPieces());
+
+        Bitboard targets = safe & ~board.pieces(us, PieceType::PAWN);
+
+        eval += KNIGHT_HIT_QUEEN * (targets & knightHits & evalData.attackedBy[us][PieceType::KNIGHT]).popcount();
+        TRACE_ADD(knightHitQueen, (targets & knightHits & evalData.attackedBy[us][PieceType::KNIGHT]).popcount());
+
+        targets &= evalData.attackedBy2[us];
+        eval += BISHOP_HIT_QUEEN * (targets & bishopHits & evalData.attackedBy[us][PieceType::BISHOP]).popcount();
+        TRACE_ADD(bishopHitQueen, (targets & bishopHits & evalData.attackedBy[us][PieceType::BISHOP]).popcount());
+
+        eval += ROOK_HIT_QUEEN * (targets & rookHits & evalData.attackedBy[us][PieceType::ROOK]).popcount();
+        TRACE_ADD(rookHitQueen, (targets & rookHits & evalData.attackedBy[us][PieceType::ROOK]).popcount());
+    }
 
     return eval;
 }
@@ -697,6 +721,9 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray2D(trace.threatByRook, ParamType::NORMAL);
     addCoefficientArray2D(trace.threatByQueen, ParamType::NORMAL);
     addCoefficientArray(trace.threatByKing, ParamType::NORMAL);
+    addCoefficient(trace.knightHitQueen, ParamType::NORMAL);
+    addCoefficient(trace.bishopHitQueen, ParamType::NORMAL);
+    addCoefficient(trace.rookHitQueen, ParamType::NORMAL);
     addCoefficient(trace.pushThreat, ParamType::NORMAL);
 
     addCoefficientArray(trace.isolatedPawn, ParamType::NORMAL);
@@ -791,6 +818,9 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray2D(params, THREAT_BY_ROOK, ParamType::NORMAL);
     addEvalParamArray2D(params, THREAT_BY_QUEEN, ParamType::NORMAL);
     addEvalParamArray(params, THREAT_BY_KING, ParamType::NORMAL);
+    addEvalParam(params, KNIGHT_HIT_QUEEN, ParamType::NORMAL);
+    addEvalParam(params, BISHOP_HIT_QUEEN, ParamType::NORMAL);
+    addEvalParam(params, ROOK_HIT_QUEEN, ParamType::NORMAL);
     addEvalParam(params, PUSH_THREAT, ParamType::NORMAL);
 
     addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
@@ -1001,6 +1031,18 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr PackedScore THREAT_BY_KING[6] = ";
     printArray<ALIGN_SIZE>(state, 6);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore KNIGHT_HIT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore BISHOP_HIT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore ROOK_HIT_QUEEN = ";
+    printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PUSH_THREAT = ";
