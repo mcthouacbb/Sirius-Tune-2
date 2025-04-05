@@ -329,10 +329,10 @@ PackedScore evaluatePassedPawns(const Board & board, const PawnStructure& pawnSt
             eval += PASSED_PAWN[blocked][controlled][rank];
             TRACE_INC(passedPawn[blocked][controlled][rank]);
 
-            eval += OUR_PASSER_PROXIMITY[Square::chebyshev(ourKing, passer)];
-            eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, passer)];
-            TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, passer)]);
-            TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, passer)]);
+            eval += OUR_PASSER_PROXIMITY[Square::chebyshev(ourKing, pushSq)];
+            eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, pushSq)];
+            TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, pushSq)]);
+            TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, pushSq)]);
         }
     }
 
