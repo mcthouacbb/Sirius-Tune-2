@@ -69,7 +69,6 @@ struct Trace
     TraceElem tempo;
 
     TraceElem complexityPawns;
-    TraceElem complexityPassers;
     TraceElem complexityPawnsBothSides;
     TraceElem complexityPawnEndgame;
     TraceElem complexityOffset;
@@ -573,14 +572,12 @@ PackedScore evaluateComplexity(const Board& board, const PawnStructure& pawnStru
     bool pawnEndgame = board.allPieces() == (pawns | board.pieces(PieceType::KING));
 
     trace.complexityPawns[Color::WHITE] += pawns.popcount();
-    trace.complexityPassers[Color::WHITE] += pawnStructure.passedPawns.popcount();
     trace.complexityPawnsBothSides[Color::WHITE] += pawnsBothSides;
     trace.complexityPawnEndgame[Color::WHITE] += pawnEndgame;
     trace.complexityOffset[Color::WHITE] = 1;
 
     PackedScore complexity =
         COMPLEXITY_PAWNS * pawns.popcount() +
-        COMPLEXITY_PASSERS * pawnStructure.passedPawns.popcount() +
         COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides +
         COMPLEXITY_PAWN_ENDGAME * pawnEndgame +
         COMPLEXITY_OFFSET;
@@ -765,7 +762,6 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.tempo, ParamType::NORMAL);
 
     addCoefficient(trace.complexityPawns, ParamType::COMPLEXITY);
-    addCoefficient(trace.complexityPassers, ParamType::COMPLEXITY);
     addCoefficient(trace.complexityPawnsBothSides, ParamType::COMPLEXITY);
     addCoefficient(trace.complexityPawnEndgame, ParamType::COMPLEXITY);
     addCoefficient(trace.complexityOffset, ParamType::COMPLEXITY);
@@ -861,7 +857,6 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, TEMPO, ParamType::NORMAL);
 
     addEvalParam(params, COMPLEXITY_PAWNS, ParamType::COMPLEXITY);
-    addEvalParam(params, COMPLEXITY_PASSERS, ParamType::COMPLEXITY);
     addEvalParam(params, COMPLEXITY_PAWNS_BOTH_SIDES, ParamType::COMPLEXITY);
     addEvalParam(params, COMPLEXITY_PAWN_ENDGAME, ParamType::COMPLEXITY);
     addEvalParam(params, COMPLEXITY_OFFSET, ParamType::COMPLEXITY);
@@ -1194,10 +1189,6 @@ void printRestParams(PrintState& state)
     state.ss << '\n';
 
     state.ss << "constexpr PackedScore COMPLEXITY_PAWNS = ";
-    printSingle<ALIGN_SIZE>(state);
-    state.ss << ";\n";
-
-    state.ss << "constexpr PackedScore COMPLEXITY_PASSERS = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
