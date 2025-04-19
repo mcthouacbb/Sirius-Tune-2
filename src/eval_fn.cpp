@@ -368,7 +368,7 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     {
         Square threat = knightThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
-        bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
+        bool defended = defendedBB.has(threat);
         eval += THREAT_BY_KNIGHT[defended][static_cast<int>(threatened)];
         TRACE_INC(threatByKnight[defended][static_cast<int>(threatened)]);
     }
@@ -378,7 +378,7 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     {
         Square threat = bishopThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
-        bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
+        bool defended = defendedBB.has(threat);
         eval += THREAT_BY_BISHOP[defended][static_cast<int>(threatened)];
         TRACE_INC(threatByBishop[defended][static_cast<int>(threatened)]);
     }
@@ -388,7 +388,7 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     {
         Square threat = rookThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
-        bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
+        bool defended = defendedBB.has(threat);
         eval += THREAT_BY_ROOK[defended][static_cast<int>(threatened)];
         TRACE_INC(threatByRook[defended][static_cast<int>(threatened)]);
     }
@@ -398,7 +398,7 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     {
         Square threat = queenThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
-        bool defended = (defendedBB & Bitboard::fromSquare(threat)).any();
+        bool defended = defendedBB.has(threat);
         eval += THREAT_BY_QUEEN[defended][static_cast<int>(threatened)];
         TRACE_INC(threatByQueen[defended][static_cast<int>(threatened)]);
     }
@@ -410,7 +410,6 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
         eval += THREAT_BY_KING[static_cast<int>(threatened)];
         TRACE_INC(threatByKing[static_cast<int>(threatened)]);
     }
-
 
     Bitboard nonPawnEnemies = board.pieces(them) & ~board.pieces(PieceType::PAWN);
 
