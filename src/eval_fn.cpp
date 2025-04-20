@@ -454,10 +454,14 @@ PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPaw
     int edgeDist = std::min(file, 7 - file);
     {
         Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
-        int rank = filePawns.any() ?
-            (us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>() :
-            0;
-        bool blocked = rank != 0 && (theirPawns & Bitboard::fromSquare(Square(rank - 1, file))).any();
+        int rank = 0;
+        bool blocked = false;
+        if (filePawns.any())
+        {
+            Square filePawn = us == Color::WHITE ? filePawns.msb() : filePawns.lsb();
+            rank = filePawn.relativeRank<them>();
+            blocked = theirPawns.has(filePawn + attacks::pawnPushOffset<us>());
+        }
         eval += PAWN_STORM[blocked][edgeDist][rank];
         TRACE_INC(pawnStorm[blocked][edgeDist][rank]);
     }
@@ -645,7 +649,7 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
 
 double evaluateScale(const Board& board, PackedScore eval)
 {
-    Color strongSide = eval.eg() > 0 ? Color::WHITE : Color::BLACK;
+    Color strongSide = eval.eg() > 0 ? Color::WHITE : eval.eg() < 0 ? Color::BLACK : board.sideToMove();
 
     int strongPawns = board.pieces(strongSide, PieceType::PAWN).popcount();
 
