@@ -29,6 +29,7 @@ struct Trace
     TraceElem bishopHitQueen;
     TraceElem rookHitQueen;
     TraceElem pushThreat;
+    TraceElem restrictedSquares;
 
     TraceElem isolatedPawn[8];
     TraceElem doubledPawn[8];
@@ -420,6 +421,10 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
     Bitboard pushThreats = attacks::pawnAttacks<us>(pushes & safe) & nonPawnEnemies;
     eval += PUSH_THREAT * pushThreats.popcount();
     TRACE_ADD(pushThreat, pushThreats.popcount());
+
+    Bitboard restriction = evalData.attackedBy2[us] & ~evalData.attackedBy2[them] & evalData.attacked[them];
+    eval += RESTRICTED_SQUARES * restriction.popcount();
+    TRACE_ADD(restrictedSquares, restriction.popcount());
     
     Bitboard oppQueens = board.pieces(them, PieceType::QUEEN);
     if (oppQueens.one())
@@ -725,6 +730,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.bishopHitQueen, ParamType::NORMAL);
     addCoefficient(trace.rookHitQueen, ParamType::NORMAL);
     addCoefficient(trace.pushThreat, ParamType::NORMAL);
+    addCoefficient(trace.restrictedSquares, ParamType::NORMAL);
 
     addCoefficientArray(trace.isolatedPawn, ParamType::NORMAL);
     addCoefficientArray(trace.doubledPawn, ParamType::NORMAL);
@@ -821,6 +827,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, BISHOP_HIT_QUEEN, ParamType::NORMAL);
     addEvalParam(params, ROOK_HIT_QUEEN, ParamType::NORMAL);
     addEvalParam(params, PUSH_THREAT, ParamType::NORMAL);
+    addEvalParam(params, RESTRICTED_SQUARES, ParamType::NORMAL);
 
     addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, DOUBLED_PAWN, ParamType::NORMAL);
@@ -1044,6 +1051,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr PackedScore PUSH_THREAT = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
+    state.ss << "constexpr PackedScore RESTRICTED_SQUARES = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
