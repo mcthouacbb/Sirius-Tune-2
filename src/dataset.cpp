@@ -4,15 +4,11 @@
 
 #include <string>
 
-
-constexpr struct {const char* str; double wdl;} wdls[] = {
-    {"1-0", 1.0},
-    {"0-1", 0.0},
-    {"1/2-1/2", 0.5},
-    {"1.0", 1.0},
-    {"0.0", 0.0},
-    {"0.5", 0.5}
-};
+constexpr struct
+{
+    const char* str;
+    double wdl;
+} wdls[] = {{"1-0", 1.0}, {"0-1", 0.0}, {"1/2-1/2", 0.5}, {"1.0", 1.0}, {"0.0", 0.0}, {"0.5", 0.5}};
 
 Dataset loadDataset(std::ifstream& file)
 {
@@ -28,7 +24,7 @@ Dataset loadDataset(std::ifstream& file)
         {
             if (line.find(wdl.str) != std::string::npos)
             {
-                wdlResult  = wdl.wdl;
+                wdlResult = wdl.wdl;
                 break;
             }
         }
@@ -59,11 +55,9 @@ Dataset loadDataset(std::ifstream& file)
         pos.coeffBegin = coeffBegin;
         pos.coeffEnd = coeffEnd;
         pos.wdl = wdlResult;
-        pos.phase =
-            4 * board.pieces(PieceType::QUEEN).popcount() +
-            2 * board.pieces(PieceType::ROOK).popcount() +
-            board.pieces(PieceType::BISHOP).popcount() +
-            board.pieces(PieceType::KNIGHT).popcount();
+        pos.phase = 4 * board.pieces(PieceType::QUEEN).popcount()
+            + 2 * board.pieces(PieceType::ROOK).popcount()
+            + board.pieces(PieceType::BISHOP).popcount() + board.pieces(PieceType::KNIGHT).popcount();
         pos.phase /= 24.0;
         pos.egScale = egScale;
 

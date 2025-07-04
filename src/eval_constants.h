@@ -1,5 +1,6 @@
 #include "sirius/defs.h"
 
+// clang-format off
 #define S(mg, eg) {mg, eg}
 
 constexpr PackedScore MATERIAL[6] = {S(  61,  131), S( 286,  431), S( 306,  444), S( 386,  789), S( 745, 1618), S(0, 0)};
@@ -172,3 +173,4 @@ constexpr PackedScore COMPLEXITY_PAWN_ENDGAME = S(   0,   80);
 constexpr PackedScore COMPLEXITY_OFFSET = S(   0, -134);
 
 #undef S
+// clang-format on

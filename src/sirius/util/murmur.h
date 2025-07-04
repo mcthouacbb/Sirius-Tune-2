@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 
 constexpr uint64_t murmurHash3(uint64_t key)
@@ -9,4 +11,3 @@ constexpr uint64_t murmurHash3(uint64_t key)
     key ^= key >> 33;
     return key;
 };
-

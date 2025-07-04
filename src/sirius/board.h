@@ -1,14 +1,15 @@
 #pragma once
 
-#include "defs.h"
 #include "bitboard.h"
-#include "zobrist.h"
-#include "util/murmur.h"
+#include "castling.h"
+#include "defs.h"
 #include "util/enum_array.h"
+#include "util/murmur.h"
+#include "zobrist.h"
 
-#include <string_view>
-#include <string>
 #include <array>
+#include <string>
+#include <string_view>
 #include <vector>
 
 struct CheckInfo
@@ -16,7 +17,6 @@ struct CheckInfo
     Bitboard checkers;
     std::array<Bitboard, 2> pinners;
     std::array<Bitboard, 2> blockers;
-
 };
 
 struct BoardState
@@ -53,9 +53,11 @@ struct BoardState
         else
         {
             nonPawnKeys[color].addPiece(pieceType, color, pos);
-            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT
+                || pieceType == PieceType::KING)
                 minorPieceKey.addPiece(pieceType, color, pos);
-            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN
+                || pieceType == PieceType::KING)
                 majorPieceKey.addPiece(pieceType, color, pos);
         }
     }
@@ -75,9 +77,11 @@ struct BoardState
         else
         {
             nonPawnKeys[color].addPiece(pieceType, color, pos);
-            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT
+                || pieceType == PieceType::KING)
                 minorPieceKey.addPiece(pieceType, color, pos);
-            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN
+                || pieceType == PieceType::KING)
                 majorPieceKey.addPiece(pieceType, color, pos);
         }
     }
@@ -98,9 +102,11 @@ struct BoardState
         else
         {
             nonPawnKeys[color].removePiece(pieceType, color, pos);
-            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT
+                || pieceType == PieceType::KING)
                 minorPieceKey.removePiece(pieceType, color, pos);
-            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN
+                || pieceType == PieceType::KING)
                 majorPieceKey.removePiece(pieceType, color, pos);
         }
     }
@@ -125,9 +131,11 @@ struct BoardState
         else
         {
             nonPawnKeys[color].movePiece(pieceType, color, src, dst);
-            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT || pieceType == PieceType::KING)
+            if (pieceType == PieceType::BISHOP || pieceType == PieceType::KNIGHT
+                || pieceType == PieceType::KING)
                 minorPieceKey.movePiece(pieceType, color, src, dst);
-            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN || pieceType == PieceType::KING)
+            if (pieceType == PieceType::ROOK || pieceType == PieceType::QUEEN
+                || pieceType == PieceType::KING)
                 majorPieceKey.movePiece(pieceType, color, src, dst);
         }
     }
@@ -146,12 +154,10 @@ public:
 
     Board();
 
-    void setToFen(const std::string_view& fen);
-    void setToEpd(const std::string_view& epd);
+    void setToFen(const std::string_view& fen, bool frc = false);
 
     std::string stringRep() const;
     std::string fenStr() const;
-    std::string epdStr() const;
 
     void makeMove(Move move);
     void makeMove(Move move, eval::EvalState& evalState);
@@ -160,6 +166,7 @@ public:
     void makeNullMove();
     void unmakeNullMove();
 
+    bool isFRC() const;
     Color sideToMove() const;
     int epSquare() const;
     int gamePly() const;
@@ -185,6 +192,7 @@ public:
     Bitboard pieces(Color color) const;
     Bitboard allPieces() const;
     Square kingSq(Color color) const;
+    Square castlingRookSq(Color color, CastleSide side) const;
 
     bool squareAttacked(Color color, Square square) const;
     bool squareAttacked(Color color, Square square, Bitboard blockers) const;
@@ -192,9 +200,7 @@ public:
     Bitboard attackersTo(Color color, Square square, Bitboard blockers) const;
     Bitboard attackersTo(Square square) const;
     Bitboard attackersTo(Square square, Bitboard blockers) const;
-
-    bool isPassedPawn(Square square) const;
-    bool isIsolatedPawn(Square square) const;
+    bool castlingBlocked(Color color, CastleSide side) const;
 
     Bitboard pinnersBlockers(Square square, Bitboard attackers, Bitboard& pinners) const;
 
@@ -206,6 +212,7 @@ public:
     bool isPseudoLegal(Move move) const;
     bool isLegal(Move move) const;
     ZKey keyAfter(Move move) const;
+
 private:
     template<bool updateEval>
     void makeMove(Move move, eval::EvalState* evalState);
@@ -220,18 +227,18 @@ private:
     void updateCheckInfo();
     void calcThreats();
     void calcRepetitions();
-    void addPiece(Square pos, Color color, PieceType pieceType/*, eval::EvalUpdates& updates*/);
-    void addPiece(Square pos, Piece piece/*, eval::EvalUpdates& updates*/);
-    void removePiece(Square pos/*, eval::EvalUpdates& updates*/);
-    void movePiece(Square src, Square dst/*, eval::EvalUpdates& updates*/);
+    void addPiece(Square pos, Color color, PieceType pieceType, eval::EvalUpdates& updates);
+    void addPiece(Square pos, Piece piece, eval::EvalUpdates& updates);
+    void removePiece(Square pos, eval::EvalUpdates& updates);
+    void movePiece(Square src, Square dst, eval::EvalUpdates& updates);
 
     int seePieceValue(PieceType type) const;
 
-    static constexpr std::array<int, 6> SEE_PIECE_VALUES = {
-        100, 450, 450, 675, 1300, 0
-    };
+    static constexpr std::array<int, 6> SEE_PIECE_VALUES = {100, 450, 450, 675, 1300, 0};
 
     std::vector<BoardState> m_States;
+    CastlingData m_CastlingData;
+    bool m_FRC;
 
     Color m_SideToMove;
 
@@ -275,7 +282,13 @@ inline bool Board::isDraw(int searchPly) const
 
 inline bool Board::is3FoldDraw(int searchPly) const
 {
-    return currState().repetitions > 1 || (currState().repetitions == 1 && currState().lastRepetition < searchPly);
+    return currState().repetitions > 1
+        || (currState().repetitions == 1 && currState().lastRepetition < searchPly);
+}
+
+inline bool Board::isFRC() const
+{
+    return m_FRC;
 }
 
 inline Color Board::sideToMove() const
@@ -382,6 +395,11 @@ inline Bitboard Board::allPieces() const
 inline Square Board::kingSq(Color color) const
 {
     return pieces(color, PieceType::KING).lsb();
+}
+
+inline Square Board::castlingRookSq(Color color, CastleSide side) const
+{
+    return m_CastlingData.rookSquare(color, side);
 }
 
 inline bool Board::squareAttacked(Color color, Square square) const

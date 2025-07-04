@@ -1,11 +1,12 @@
 #pragma once
 
-#include <vector>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
 #include <deque>
 #include <functional>
+#include <mutex>
+#include <thread>
+#include <vector>
+
 
 class ThreadPool
 {
@@ -20,6 +21,7 @@ public:
 
     void wait();
     void addTask(const std::function<void()>& task);
+
 private:
     void stop();
     void threadLoop();

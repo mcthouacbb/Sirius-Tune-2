@@ -1,11 +1,10 @@
 #pragma once
 
-#include <cstdint>
-#include <iostream>
-#include <bitset>
 #include <bit>
+#include <bitset>
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 
 enum class PieceType
 {
@@ -49,7 +48,6 @@ inline Color getPieceColor(Piece piece)
     return static_cast<Color>(static_cast<int>(piece) >> 3);
 }
 
-
 enum class MoveType
 {
     NONE = 0 << 12,
@@ -69,11 +67,7 @@ enum class Promotion
 inline PieceType promoPiece(Promotion promo)
 {
     static const PieceType promoPieces[4] = {
-        PieceType::KNIGHT,
-        PieceType::BISHOP,
-        PieceType::ROOK,
-        PieceType::QUEEN
-    };
+        PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
 
     return promoPieces[static_cast<int>(promo) >> 14];
 }
@@ -86,7 +80,6 @@ constexpr int RANK_5 = 4;
 constexpr int RANK_6 = 5;
 constexpr int RANK_7 = 6;
 constexpr int RANK_8 = 7;
-
 
 constexpr int FILE_A = 0;
 constexpr int FILE_B = 1;
@@ -104,12 +97,20 @@ public:
     explicit constexpr Square(int sq);
     constexpr Square(int rank, int file);
 
+    constexpr Square& operator+=(int other);
+    constexpr Square& operator-=(int other);
+
     constexpr bool operator==(const Square& other) const = default;
     constexpr bool operator!=(const Square& other) const = default;
     constexpr bool operator>(const Square& other) const;
     constexpr bool operator>=(const Square& other) const;
     constexpr bool operator<(const Square& other) const;
     constexpr bool operator<=(const Square& other) const;
+
+    constexpr Square& operator++();
+    constexpr Square operator++(int);
+    constexpr Square& operator--();
+    constexpr Square operator--(int);
 
     constexpr Square operator+(int other) const;
     constexpr Square operator-(int other) const;
@@ -128,6 +129,7 @@ public:
     static constexpr int chebyshev(Square a, Square b);
     static constexpr int manhattan(Square a, Square b);
     static constexpr Square average(Square a, Square b);
+
 private:
     uint8_t m_Value;
 };
@@ -141,7 +143,18 @@ constexpr Square::Square(int sq)
 constexpr Square::Square(int rank, int file)
     : m_Value(static_cast<uint8_t>(rank * 8 + file))
 {
+}
 
+constexpr Square& Square::operator+=(int other)
+{
+    *this = *this + other;
+    return *this;
+}
+
+constexpr Square& Square::operator-=(int other)
+{
+    *this = *this - other;
+    return *this;
 }
 
 constexpr bool Square::operator>(const Square& other) const
@@ -162,6 +175,32 @@ constexpr bool Square::operator<(const Square& other) const
 constexpr bool Square::operator<=(const Square& other) const
 {
     return value() <= other.value();
+}
+
+constexpr Square& Square::operator++()
+{
+    m_Value++;
+    return *this;
+}
+
+constexpr Square Square::operator++(int)
+{
+    Square tmp = *this;
+    operator++();
+    return tmp;
+}
+
+constexpr Square& Square::operator--()
+{
+    m_Value--;
+    return *this;
+}
+
+constexpr Square Square::operator--(int)
+{
+    Square tmp = *this;
+    operator--();
+    return tmp;
 }
 
 constexpr Square Square::operator+(int other) const
@@ -254,11 +293,14 @@ public:
     bool operator==(const Move& other) const = default;
     bool operator!=(const Move& other) const = default;
 
+    static constexpr Move nullmove();
+
     Square fromSq() const;
     Square toSq() const;
     int fromTo() const;
     MoveType type() const;
     Promotion promotion() const;
+
 private:
     static constexpr int TYPE_MASK = 3 << 12;
     static constexpr int PROMOTION_MASK = 3 << 14;
@@ -274,9 +316,14 @@ inline Move::Move(Square from, Square to, MoveType type)
 inline Move::Move(Square from, Square to, MoveType type, Promotion promotion)
     : m_Data(0)
 {
-    m_Data = static_cast<uint16_t>(from.value() | (to.value() << 6) | static_cast<int>(type) | static_cast<int>(promotion));
+    m_Data = static_cast<uint16_t>(
+        from.value() | (to.value() << 6) | static_cast<int>(type) | static_cast<int>(promotion));
 }
 
+constexpr Move Move::nullmove()
+{
+    return Move();
+}
 
 inline Square Move::fromSq() const
 {
@@ -317,111 +364,25 @@ inline bool isMateScore(int score)
     return std::abs(score) >= SCORE_MATE_IN_MAX;
 }
 
-struct CastlingRights
+struct ScorePair
 {
 public:
-    enum class Internal : uint8_t
-    {
-        NONE = 0,
-        WHITE_KING_SIDE = 1,
-        WHITE_QUEEN_SIDE = 2,
-        BLACK_KING_SIDE = 4,
-        BLACK_QUEEN_SIDE = 8
-    };
-    static constexpr Internal NONE = Internal::NONE;
-    static constexpr Internal WHITE_KING_SIDE = Internal::WHITE_KING_SIDE;
-    static constexpr Internal WHITE_QUEEN_SIDE = Internal::WHITE_QUEEN_SIDE;
-    static constexpr Internal BLACK_KING_SIDE = Internal::BLACK_KING_SIDE;
-    static constexpr Internal BLACK_QUEEN_SIDE = Internal::BLACK_QUEEN_SIDE;
-
-    constexpr CastlingRights();
-    constexpr CastlingRights(Internal v);
-
-    constexpr CastlingRights& operator&=(const CastlingRights& other);
-    constexpr CastlingRights& operator|=(const CastlingRights& other);
-
-    constexpr CastlingRights operator&(const CastlingRights& other) const;
-    constexpr CastlingRights operator|(const CastlingRights& other) const;
-
-    constexpr bool has(Internal v) const;
-
-    constexpr int value() const;
-private:
-    Internal m_Value;
-};
-
-constexpr CastlingRights operator&(CastlingRights::Internal a, CastlingRights::Internal b)
-{
-    return CastlingRights(static_cast<CastlingRights::Internal>(static_cast<int>(a) & static_cast<int>(b)));
-}
-
-constexpr CastlingRights operator|(CastlingRights::Internal a, CastlingRights::Internal b)
-{
-    return CastlingRights(static_cast<CastlingRights::Internal>(static_cast<int>(a) | static_cast<int>(b)));
-}
-
-constexpr CastlingRights::CastlingRights()
-    : m_Value(Internal::NONE)
-{
-
-}
-
-constexpr CastlingRights::CastlingRights(Internal v)
-    : m_Value(v)
-{
-
-}
-
-constexpr CastlingRights& CastlingRights::operator&=(const CastlingRights& other)
-{
-    *this = *this & other;
-    return *this;
-}
-
-constexpr CastlingRights& CastlingRights::operator|=(const CastlingRights& other)
-{
-    *this = *this | other;
-    return *this;
-}
-
-constexpr CastlingRights CastlingRights::operator&(const CastlingRights& other) const
-{
-    return CastlingRights(m_Value & other.m_Value);
-}
-
-constexpr CastlingRights CastlingRights::operator|(const CastlingRights& other) const
-{
-    return CastlingRights(m_Value | other.m_Value);
-}
-
-constexpr bool CastlingRights::has(Internal v) const
-{
-    return static_cast<int>((m_Value & v).m_Value) != 0;
-}
-
-constexpr int CastlingRights::value() const
-{
-    return static_cast<int>(m_Value);
-}
-
-struct PackedScore
-{
-public:
-    constexpr PackedScore() = default;
-    constexpr PackedScore(int mg, int eg);
-    constexpr PackedScore& operator+=(const PackedScore& other);
-    constexpr PackedScore& operator-=(const PackedScore& other);
+    constexpr ScorePair() = default;
+    constexpr ScorePair(int mg, int eg);
+    constexpr ScorePair& operator+=(const ScorePair& other);
+    constexpr ScorePair& operator-=(const ScorePair& other);
 
     constexpr int mg() const;
     constexpr int eg() const;
 
-    friend constexpr PackedScore operator+(const PackedScore& a, const PackedScore& b);
-    friend constexpr PackedScore operator-(const PackedScore& a, const PackedScore& b);
-    friend constexpr PackedScore operator-(const PackedScore& p);
-    friend constexpr PackedScore operator*(int a, const PackedScore& b);
-    friend constexpr PackedScore operator*(const PackedScore& a, int b);
+    friend constexpr ScorePair operator+(const ScorePair& a, const ScorePair& b);
+    friend constexpr ScorePair operator-(const ScorePair& a, const ScorePair& b);
+    friend constexpr ScorePair operator-(const ScorePair& p);
+    friend constexpr ScorePair operator*(int a, const ScorePair& b);
+    friend constexpr ScorePair operator*(const ScorePair& a, int b);
+
 private:
-    constexpr PackedScore(int value)
+    constexpr ScorePair(int value)
         : m_Value(value)
     {
     }
@@ -429,55 +390,54 @@ private:
     int32_t m_Value;
 };
 
-constexpr PackedScore::PackedScore(int mg, int eg)
+constexpr ScorePair::ScorePair(int mg, int eg)
     : m_Value((static_cast<int32_t>(static_cast<uint32_t>(eg) << 16) + mg))
 {
-
 }
 
-constexpr PackedScore& PackedScore::operator+=(const PackedScore& other)
+constexpr ScorePair& ScorePair::operator+=(const ScorePair& other)
 {
     m_Value += other.m_Value;
     return *this;
 }
 
-constexpr PackedScore& PackedScore::operator-=(const PackedScore& other)
+constexpr ScorePair& ScorePair::operator-=(const ScorePair& other)
 {
     m_Value -= other.m_Value;
     return *this;
 }
 
-constexpr int PackedScore::mg() const
+constexpr int ScorePair::mg() const
 {
     return static_cast<int16_t>(m_Value);
 }
 
-constexpr int PackedScore::eg() const
+constexpr int ScorePair::eg() const
 {
     return static_cast<int16_t>(static_cast<uint32_t>(m_Value + 0x8000) >> 16);
 }
 
-constexpr PackedScore operator+(const PackedScore& a, const PackedScore& b)
+constexpr ScorePair operator+(const ScorePair& a, const ScorePair& b)
 {
-    return PackedScore(a.m_Value + b.m_Value);
+    return ScorePair(a.m_Value + b.m_Value);
 }
 
-constexpr PackedScore operator-(const PackedScore& a, const PackedScore& b)
+constexpr ScorePair operator-(const ScorePair& a, const ScorePair& b)
 {
-    return PackedScore(a.m_Value - b.m_Value);
+    return ScorePair(a.m_Value - b.m_Value);
 }
 
-constexpr PackedScore operator-(const PackedScore& p)
+constexpr ScorePair operator-(const ScorePair& p)
 {
-    return PackedScore(-p.m_Value);
+    return ScorePair(-p.m_Value);
 }
 
-constexpr PackedScore operator*(int a, const PackedScore& b)
+constexpr ScorePair operator*(int a, const ScorePair& b)
 {
-    return PackedScore(a * b.m_Value);
+    return ScorePair(a * b.m_Value);
 }
 
-constexpr PackedScore operator*(const PackedScore& a, int b)
+constexpr ScorePair operator*(const ScorePair& a, int b)
 {
-    return PackedScore(a.m_Value * b);
+    return ScorePair(a.m_Value * b);
 }
