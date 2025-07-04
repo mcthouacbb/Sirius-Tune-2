@@ -84,7 +84,7 @@ struct EvalData
     ColorArray<Bitboard> attackedBy2;
     ColorArray<PieceTypeArray<Bitboard>> attackedBy;
     ColorArray<Bitboard> kingRing;
-    ColorArray<PackedScore> attackWeight;
+    ColorArray<ScorePair> attackWeight;
     ColorArray<int> attackCount;
     ColorArray<Bitboard> kingFlank;
 };
@@ -111,7 +111,7 @@ struct PawnStructure
 };
 
 template<Color us>
-PackedScore evaluateKnightOutposts(const Board& board, const PawnStructure& pawnStructure, Trace& trace)
+ScorePair evaluateKnightOutposts(const Board& board, const PawnStructure& pawnStructure, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard outpostRanks = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
@@ -122,11 +122,11 @@ PackedScore evaluateKnightOutposts(const Board& board, const PawnStructure& pawn
 }
 
 template<Color us>
-PackedScore evaluateBishopPawns(const Board& board, Trace& trace)
+ScorePair evaluateBishopPawns(const Board& board, Trace& trace)
 {
     Bitboard bishops = board.pieces(us, PieceType::BISHOP);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
     while (bishops.any())
     {
         Square sq = bishops.poplsb();
@@ -140,14 +140,14 @@ PackedScore evaluateBishopPawns(const Board& board, Trace& trace)
 }
 
 template<Color us>
-PackedScore evaluateRookOpen(const Board& board, Trace& trace)
+ScorePair evaluateRookOpen(const Board& board, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
     Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
     Bitboard rooks = board.pieces(us, PieceType::ROOK);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
     while (rooks.any())
     {
         Bitboard fileBB = Bitboard::fileBB(rooks.poplsb().file());
@@ -166,7 +166,7 @@ PackedScore evaluateRookOpen(const Board& board, Trace& trace)
 }
 
 template<Color us>
-PackedScore evaluateMinorBehindPawn(const Board& board, Trace& trace)
+ScorePair evaluateMinorBehindPawn(const Board& board, Trace& trace)
 {
     Bitboard pawns = board.pieces(PieceType::PAWN);
     Bitboard minors = board.pieces(us, PieceType::KNIGHT) | board.pieces(us, PieceType::BISHOP);
@@ -177,7 +177,7 @@ PackedScore evaluateMinorBehindPawn(const Board& board, Trace& trace)
 }
 
 template<Color us, PieceType piece>
-PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
+ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
     constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
@@ -185,7 +185,7 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
     Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
     Bitboard pieces = board.pieces(us, piece);
     if constexpr (piece == PieceType::BISHOP)
         if (pieces.multiple())
@@ -240,13 +240,13 @@ PackedScore evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 }
 
 template<Color us>
-PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
+ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
     Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
 
     Bitboard pawns = ourPawns;
     while (pawns.any())
@@ -313,7 +313,7 @@ PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trac
 }
 
 template<Color us>
-PackedScore evaluatePassedPawns(
+ScorePair evaluatePassedPawns(
     const Board& board, const PawnStructure& pawnStructure, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
@@ -322,7 +322,7 @@ PackedScore evaluatePassedPawns(
 
     Bitboard passers = pawnStructure.passedPawns & board.pieces(us);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
 
     while (passers.any())
     {
@@ -347,18 +347,18 @@ PackedScore evaluatePassedPawns(
     return eval;
 }
 
-PackedScore evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
+ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
     return evaluatePawns<Color::WHITE>(board, pawnStructure, trace)
         - evaluatePawns<Color::BLACK>(board, pawnStructure, trace);
 }
 
 template<Color us>
-PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
+ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
 
     Bitboard defendedBB = evalData.attackedBy2[them] | evalData.attackedBy[them][PieceType::PAWN]
         | (evalData.attacked[them] & ~evalData.attackedBy2[us]);
@@ -467,11 +467,11 @@ PackedScore evaluateThreats(const Board& board, const EvalData& evalData, Trace&
 }
 
 template<Color us>
-PackedScore evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, Trace& trace)
+ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, Trace& trace)
 {
     constexpr Color them = ~us;
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
     int edgeDist = std::min(file, 7 - file);
     {
         Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
@@ -504,7 +504,7 @@ constexpr int safetyAdjustment(int value)
 }
 
 template<Color us>
-PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
+ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
     Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
@@ -512,7 +512,7 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
     Square theirKing = board.kingSq(them);
 
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
 
     uint32_t leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
     uint32_t rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
@@ -588,12 +588,12 @@ PackedScore evaluateKings(const Board& board, const EvalData& evalData, Trace& t
 
     eval += SAFETY_OFFSET;
 
-    PackedScore safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
+    ScorePair safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
     return safety;
 }
 
-PackedScore evaluateComplexity(
-    const Board& board, const PawnStructure& pawnStructure, PackedScore eval, Trace& trace)
+ScorePair evaluateComplexity(
+    const Board& board, const PawnStructure& pawnStructure, ScorePair eval, Trace& trace)
 {
     constexpr Bitboard KING_SIDE = FILE_A_BB | FILE_B_BB | FILE_C_BB | FILE_D_BB;
     constexpr Bitboard QUEEN_SIDE = ~KING_SIDE;
@@ -606,7 +606,7 @@ PackedScore evaluateComplexity(
     trace.complexityPawnEndgame[Color::WHITE] += pawnEndgame;
     trace.complexityOffset[Color::WHITE] = 1;
 
-    PackedScore complexity = COMPLEXITY_PAWNS * pawns.popcount()
+    ScorePair complexity = COMPLEXITY_PAWNS * pawns.popcount()
         + COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides + COMPLEXITY_PAWN_ENDGAME * pawnEndgame
         + COMPLEXITY_OFFSET;
 
@@ -614,7 +614,7 @@ PackedScore evaluateComplexity(
 
     int egComplexity = std::max(complexity.eg(), -std::abs(eval.eg()));
 
-    return PackedScore(0, egSign * egComplexity);
+    return ScorePair(0, egSign * egComplexity);
 }
 
 template<Color us>
@@ -643,9 +643,9 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
     evalData.kingFlank[us] = attacks::kingFlank(us, ourKing.file());
 }
 
-PackedScore evaluatePsqt(const Board& board, Trace& trace)
+ScorePair evaluatePsqt(const Board& board, Trace& trace)
 {
-    PackedScore eval{0, 0};
+    ScorePair eval{0, 0};
     for (Color c : {Color::WHITE, Color::BLACK})
     {
         bool mirror = board.kingSq(c).file() >= FILE_E;
@@ -663,7 +663,7 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
                 if (mirror)
                     x ^= 7;
                 trace.psqt[static_cast<int>(pt)][sq.value() ^ x][c]++;
-                PackedScore d =
+                ScorePair d =
                     MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq.value() ^ x];
                 if (c == Color::WHITE)
                     eval += d;
@@ -676,7 +676,7 @@ PackedScore evaluatePsqt(const Board& board, Trace& trace)
     return eval;
 }
 
-double evaluateScale(const Board& board, PackedScore eval)
+double evaluateScale(const Board& board, ScorePair eval)
 {
     Color strongSide = eval.eg() > 0 ? Color::WHITE
         : eval.eg() < 0              ? Color::BLACK
@@ -691,7 +691,7 @@ Trace getTrace(const Board& board)
 {
     Trace trace = {};
 
-    PackedScore eval = evaluatePsqt(board, trace);
+    ScorePair eval = evaluatePsqt(board, trace);
 
     PawnStructure pawnStructure(board);
 
@@ -926,7 +926,7 @@ EvalParams EvalFn::getMaterialParams()
 
 EvalParams EvalFn::getKParams()
 {
-    constexpr PackedScore K_MATERIAL[6] = {
+    constexpr ScorePair K_MATERIAL[6] = {
         {67, 98}, {311, 409}, {330, 419}, {426, 746}, {860, 1403}, {0, 0}};
 
     EvalParams params = getInitialParams();
@@ -963,7 +963,7 @@ void printSingle(PrintState& state)
 template<int ALIGN_SIZE>
 void printPSQTs(PrintState& state)
 {
-    state.ss << "constexpr PackedScore PSQT[6][64] = {\n";
+    state.ss << "constexpr ScorePair PSQT[6][64] = {\n";
     for (int pce = 0; pce < 6; pce++)
     {
         state.ss << "\t{\n";
@@ -984,7 +984,7 @@ void printPSQTs(PrintState& state)
 
 void printMaterial(PrintState& state)
 {
-    state.ss << "constexpr PackedScore MATERIAL[6] = {";
+    state.ss << "constexpr ScorePair MATERIAL[6] = {";
     for (int j = 0; j < 5; j++)
     {
         printSingle<4>(state);
@@ -1043,213 +1043,213 @@ void printArray3D(PrintState& state, int len1, int len2, int len3)
 template<int ALIGN_SIZE>
 void printRestParams(PrintState& state)
 {
-    state.ss << "constexpr PackedScore MOBILITY[4][28] = ";
+    state.ss << "constexpr ScorePair MOBILITY[4][28] = ";
     printArray2D<ALIGN_SIZE>(state, 4, 28);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore THREAT_BY_PAWN[6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_PAWN[6] = ";
     printArray<ALIGN_SIZE>(state, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREAT_BY_KNIGHT[2][6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_KNIGHT[2][6] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREAT_BY_BISHOP[2][6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_BISHOP[2][6] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREAT_BY_ROOK[2][6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_ROOK[2][6] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREAT_BY_QUEEN[2][6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_QUEEN[2][6] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THREAT_BY_KING[6] = ";
+    state.ss << "constexpr ScorePair THREAT_BY_KING[6] = ";
     printArray<ALIGN_SIZE>(state, 6);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KNIGHT_HIT_QUEEN = ";
+    state.ss << "constexpr ScorePair KNIGHT_HIT_QUEEN = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore BISHOP_HIT_QUEEN = ";
+    state.ss << "constexpr ScorePair BISHOP_HIT_QUEEN = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore ROOK_HIT_QUEEN = ";
+    state.ss << "constexpr ScorePair ROOK_HIT_QUEEN = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PUSH_THREAT = ";
+    state.ss << "constexpr ScorePair PUSH_THREAT = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore RESTRICTED_SQUARES = ";
+    state.ss << "constexpr ScorePair RESTRICTED_SQUARES = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore ISOLATED_PAWN[8] = ";
+    state.ss << "constexpr ScorePair ISOLATED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore DOUBLED_PAWN[8] = ";
+    state.ss << "constexpr ScorePair DOUBLED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore BACKWARDS_PAWN[8] = ";
+    state.ss << "constexpr ScorePair BACKWARDS_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_PHALANX[8] = ";
+    state.ss << "constexpr ScorePair PAWN_PHALANX[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore DEFENDED_PAWN[8] = ";
+    state.ss << "constexpr ScorePair DEFENDED_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore CANDIDATE_PASSER[2][8] = ";
+    state.ss << "constexpr ScorePair CANDIDATE_PASSER[2][8] = ";
     printArray2D<ALIGN_SIZE>(state, 2, 8);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore PASSED_PAWN[2][2][8] = ";
+    state.ss << "constexpr ScorePair PASSED_PAWN[2][2][8] = ";
     printArray3D<ALIGN_SIZE>(state, 2, 2, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore OUR_PASSER_PROXIMITY[8] = ";
+    state.ss << "constexpr ScorePair OUR_PASSER_PROXIMITY[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore THEIR_PASSER_PROXIMITY[8] = ";
+    state.ss << "constexpr ScorePair THEIR_PASSER_PROXIMITY[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore PAWN_STORM[2][4][8] = ";
+    state.ss << "constexpr ScorePair PAWN_STORM[2][4][8] = ";
     printArray3D<ALIGN_SIZE>(state, 2, 4, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore PAWN_SHIELD[4][8] = ";
+    state.ss << "constexpr ScorePair PAWN_SHIELD[4][8] = ";
     printArray2D<ALIGN_SIZE>(state, 4, 8);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore SAFE_KNIGHT_CHECK = ";
+    state.ss << "constexpr ScorePair SAFE_KNIGHT_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore SAFE_BISHOP_CHECK = ";
+    state.ss << "constexpr ScorePair SAFE_BISHOP_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore SAFE_ROOK_CHECK = ";
+    state.ss << "constexpr ScorePair SAFE_ROOK_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore SAFE_QUEEN_CHECK = ";
+    state.ss << "constexpr ScorePair SAFE_QUEEN_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore UNSAFE_KNIGHT_CHECK = ";
+    state.ss << "constexpr ScorePair UNSAFE_KNIGHT_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore UNSAFE_BISHOP_CHECK = ";
+    state.ss << "constexpr ScorePair UNSAFE_BISHOP_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore UNSAFE_ROOK_CHECK = ";
+    state.ss << "constexpr ScorePair UNSAFE_ROOK_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore UNSAFE_QUEEN_CHECK = ";
+    state.ss << "constexpr ScorePair UNSAFE_QUEEN_CHECK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore QUEENLESS_ATTACK = ";
+    state.ss << "constexpr ScorePair QUEENLESS_ATTACK = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KING_ATTACKER_WEIGHT[4] = ";
+    state.ss << "constexpr ScorePair KING_ATTACKER_WEIGHT[4] = ";
     printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KING_ATTACKS = ";
+    state.ss << "constexpr ScorePair KING_ATTACKS = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore WEAK_KING_RING = ";
+    state.ss << "constexpr ScorePair WEAK_KING_RING = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KING_FLANK_ATTACKS[2] = ";
+    state.ss << "constexpr ScorePair KING_FLANK_ATTACKS[2] = ";
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KING_FLANK_DEFENSES[2] = ";
+    state.ss << "constexpr ScorePair KING_FLANK_DEFENSES[2] = ";
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore SAFETY_OFFSET = ";
+    state.ss << "constexpr ScorePair SAFETY_OFFSET = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore MINOR_BEHIND_PAWN = ";
+    state.ss << "constexpr ScorePair MINOR_BEHIND_PAWN = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore KNIGHT_OUTPOST = ";
+    state.ss << "constexpr ScorePair KNIGHT_OUTPOST = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore BISHOP_PAWNS[7] = ";
+    state.ss << "constexpr ScorePair BISHOP_PAWNS[7] = ";
     printArray<ALIGN_SIZE>(state, 7);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore BISHOP_PAIR = ";
+    state.ss << "constexpr ScorePair BISHOP_PAIR = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore LONG_DIAG_BISHOP = ";
+    state.ss << "constexpr ScorePair LONG_DIAG_BISHOP = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore ROOK_OPEN[2] = ";
+    state.ss << "constexpr ScorePair ROOK_OPEN[2] = ";
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore TEMPO = ";
+    state.ss << "constexpr ScorePair TEMPO = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << '\n';
 
-    state.ss << "constexpr PackedScore COMPLEXITY_PAWNS = ";
+    state.ss << "constexpr ScorePair COMPLEXITY_PAWNS = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore COMPLEXITY_PAWNS_BOTH_SIDES = ";
+    state.ss << "constexpr ScorePair COMPLEXITY_PAWNS_BOTH_SIDES = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore COMPLEXITY_PAWN_ENDGAME = ";
+    state.ss << "constexpr ScorePair COMPLEXITY_PAWN_ENDGAME = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
-    state.ss << "constexpr PackedScore COMPLEXITY_OFFSET = ";
+    state.ss << "constexpr ScorePair COMPLEXITY_OFFSET = ";
     printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 }
