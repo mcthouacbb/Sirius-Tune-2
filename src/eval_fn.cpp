@@ -1306,9 +1306,6 @@ EvalParams extractMaterial(const EvalParams& params)
     rebalance(avgValue(rebalanced, TRACE_OFFSET(mobility[3]), 28), material[4], rebalanced,
         TRACE_OFFSET(mobility[3]), 28);
 
-    // king attacks
-    // rebalance(avgValue(rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks)), material[5], rebalanced, TRACE_OFFSET(kingAttacks), TRACE_SIZE(kingAttacks));
-
     // bishop pawns
     rebalance(avgValue(rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns)), material[2],
         rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns));
