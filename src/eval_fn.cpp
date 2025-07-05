@@ -89,19 +89,22 @@ struct EvalData
     ColorArray<Bitboard> kingFlank;
 };
 
+using enum Color;
+using enum PieceType;
+
 struct PawnStructure
 {
     PawnStructure() = default;
     PawnStructure(const Board& board)
     {
-        Bitboard wpawns = board.pieces(Color::WHITE, PieceType::PAWN);
-        Bitboard bpawns = board.pieces(Color::BLACK, PieceType::PAWN);
-        pawnAttacks[Color::WHITE] = attacks::pawnAttacks<Color::WHITE>(wpawns);
-        pawnAttackSpans[Color::WHITE] = attacks::fillUp<Color::WHITE>(pawnAttacks[Color::WHITE]);
+        Bitboard wpawns = board.pieces(WHITE, PAWN);
+        Bitboard bpawns = board.pieces(BLACK, PAWN);
+        pawnAttacks[WHITE] = attacks::pawnAttacks<WHITE>(wpawns);
+        pawnAttackSpans[WHITE] = attacks::fillUp<WHITE>(pawnAttacks[WHITE]);
         passedPawns = Bitboard(0);
 
-        pawnAttacks[Color::BLACK] = attacks::pawnAttacks<Color::BLACK>(bpawns);
-        pawnAttackSpans[Color::BLACK] = attacks::fillUp<Color::BLACK>(pawnAttacks[Color::BLACK]);
+        pawnAttacks[BLACK] = attacks::pawnAttacks<BLACK>(bpawns);
+        pawnAttackSpans[BLACK] = attacks::fillUp<BLACK>(pawnAttacks[BLACK]);
         passedPawns = Bitboard(0);
     }
 
@@ -114,17 +117,17 @@ template<Color us>
 ScorePair evaluateKnightOutposts(const Board& board, const PawnStructure& pawnStructure, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard outpostRanks = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
+    Bitboard outpostRanks = RANK_4_BB | RANK_5_BB | (us == WHITE ? RANK_6_BB : RANK_3_BB);
     Bitboard outposts =
         outpostRanks & ~pawnStructure.pawnAttackSpans[them] & pawnStructure.pawnAttacks[us];
-    TRACE_ADD(knightOutpost, (board.pieces(us, PieceType::KNIGHT) & outposts).popcount());
-    return KNIGHT_OUTPOST * (board.pieces(us, PieceType::KNIGHT) & outposts).popcount();
+    TRACE_ADD(knightOutpost, (board.pieces(us, KNIGHT) & outposts).popcount());
+    return KNIGHT_OUTPOST * (board.pieces(us, KNIGHT) & outposts).popcount();
 }
 
 template<Color us>
 ScorePair evaluateBishopPawns(const Board& board, Trace& trace)
 {
-    Bitboard bishops = board.pieces(us, PieceType::BISHOP);
+    Bitboard bishops = board.pieces(us, BISHOP);
 
     ScorePair eval{0, 0};
     while (bishops.any())
@@ -132,7 +135,7 @@ ScorePair evaluateBishopPawns(const Board& board, Trace& trace)
         Square sq = bishops.poplsb();
         bool lightSquare = (Bitboard::fromSquare(sq) & LIGHT_SQUARES_BB).any();
         Bitboard sameColorPawns =
-            board.pieces(us, PieceType::PAWN) & (lightSquare ? LIGHT_SQUARES_BB : DARK_SQUARES_BB);
+            board.pieces(us, PAWN) & (lightSquare ? LIGHT_SQUARES_BB : DARK_SQUARES_BB);
         TRACE_INC(bishopPawns[std::min(sameColorPawns.popcount(), 6u)]);
         eval += BISHOP_PAWNS[std::min(sameColorPawns.popcount(), 6u)];
     }
@@ -143,9 +146,9 @@ template<Color us>
 ScorePair evaluateRookOpen(const Board& board, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
-    Bitboard rooks = board.pieces(us, PieceType::ROOK);
+    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard theirPawns = board.pieces(them, PAWN);
+    Bitboard rooks = board.pieces(us, ROOK);
 
     ScorePair eval{0, 0};
     while (rooks.any())
@@ -168,10 +171,10 @@ ScorePair evaluateRookOpen(const Board& board, Trace& trace)
 template<Color us>
 ScorePair evaluateMinorBehindPawn(const Board& board, Trace& trace)
 {
-    Bitboard pawns = board.pieces(PieceType::PAWN);
-    Bitboard minors = board.pieces(us, PieceType::KNIGHT) | board.pieces(us, PieceType::BISHOP);
+    Bitboard pawns = board.pieces(PAWN);
+    Bitboard minors = board.pieces(us, KNIGHT) | board.pieces(us, BISHOP);
 
-    Bitboard shielded = minors & (us == Color::WHITE ? pawns.south() : pawns.north());
+    Bitboard shielded = minors & (us == WHITE ? pawns.south() : pawns.north());
     TRACE_ADD(minorBehindPawn, shielded.popcount());
     return MINOR_BEHIND_PAWN * shielded.popcount();
 }
@@ -182,12 +185,12 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
     constexpr Color them = ~us;
     constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
 
-    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard theirPawns = board.pieces(them, PAWN);
 
     ScorePair eval{0, 0};
     Bitboard pieces = board.pieces(us, piece);
-    if constexpr (piece == PieceType::BISHOP)
+    if constexpr (piece == BISHOP)
         if (pieces.multiple())
         {
             eval += BISHOP_PAIR;
@@ -195,41 +198,40 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         }
 
     Bitboard occupancy = board.allPieces();
-    if constexpr (piece == PieceType::BISHOP)
-        occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::QUEEN);
-    else if constexpr (piece == PieceType::ROOK)
-        occupancy ^= board.pieces(us, PieceType::ROOK) | board.pieces(us, PieceType::QUEEN);
-    else if constexpr (piece == PieceType::QUEEN)
-        occupancy ^= board.pieces(us, PieceType::BISHOP) | board.pieces(us, PieceType::ROOK);
+    if constexpr (piece == BISHOP)
+        occupancy ^= board.pieces(us, BISHOP) | board.pieces(us, QUEEN);
+    else if constexpr (piece == ROOK)
+        occupancy ^= board.pieces(us, ROOK) | board.pieces(us, QUEEN);
+    else if constexpr (piece == QUEEN)
+        occupancy ^= board.pieces(us, BISHOP) | board.pieces(us, ROOK);
 
-    Bitboard outpostSquares = RANK_4_BB | RANK_5_BB | (us == Color::WHITE ? RANK_6_BB : RANK_3_BB);
+    Bitboard outpostSquares = RANK_4_BB | RANK_5_BB | (us == WHITE ? RANK_6_BB : RANK_3_BB);
 
     while (pieces.any())
     {
         Square sq = pieces.poplsb();
         Bitboard attacks = attacks::pieceAttacks<piece>(sq, occupancy);
         if ((board.checkBlockers(us) & Bitboard::fromSquare(sq)).any())
-            attacks &= attacks::inBetweenSquares(sq, board.pieces(us, PieceType::KING).lsb());
+            attacks &= attacks::inBetweenSquares(sq, board.pieces(us, KING).lsb());
 
         evalData.attackedBy[us][piece] |= attacks;
         evalData.attackedBy2[us] |= evalData.attacked[us] & attacks;
         evalData.attacked[us] |= attacks;
 
-        eval += MOBILITY[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]
+        eval += MOBILITY[static_cast<int>(piece) - static_cast<int>(KNIGHT)]
                         [(attacks & evalData.mobilityArea[us]).popcount()];
-        TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]
+        TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(KNIGHT)]
                           [(attacks & evalData.mobilityArea[us]).popcount()]);
 
         if (Bitboard kingRingAtks = evalData.kingRing[them] & attacks; kingRingAtks.any())
         {
             evalData.attackWeight[us] +=
-                KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)];
-            TRACE_INC(
-                kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(PieceType::KNIGHT)]);
+                KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(KNIGHT)];
+            TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(KNIGHT)]);
             evalData.attackCount[us] += kingRingAtks.popcount();
         }
 
-        if (piece == PieceType::BISHOP && (attacks & CENTER_SQUARES).multiple())
+        if (piece == BISHOP && (attacks & CENTER_SQUARES).multiple())
         {
             eval += LONG_DIAG_BISHOP;
             TRACE_INC(longDiagBishop);
@@ -243,8 +245,8 @@ template<Color us>
 ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard theirPawns = board.pieces(them, PAWN);
 
     ScorePair eval{0, 0};
 
@@ -349,8 +351,8 @@ ScorePair evaluatePassedPawns(
 
 ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace& trace)
 {
-    return evaluatePawns<Color::WHITE>(board, pawnStructure, trace)
-        - evaluatePawns<Color::BLACK>(board, pawnStructure, trace);
+    return evaluatePawns<WHITE>(board, pawnStructure, trace)
+        - evaluatePawns<BLACK>(board, pawnStructure, trace);
 }
 
 template<Color us>
@@ -360,10 +362,10 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
 
     ScorePair eval{0, 0};
 
-    Bitboard defendedBB = evalData.attackedBy2[them] | evalData.attackedBy[them][PieceType::PAWN]
+    Bitboard defendedBB = evalData.attackedBy2[them] | evalData.attackedBy[them][PAWN]
         | (evalData.attacked[them] & ~evalData.attackedBy2[us]);
 
-    Bitboard pawnThreats = evalData.attackedBy[us][PieceType::PAWN] & board.pieces(them);
+    Bitboard pawnThreats = evalData.attackedBy[us][PAWN] & board.pieces(them);
     while (pawnThreats.any())
     {
         PieceType threatened = getPieceType(board.pieceAt(pawnThreats.poplsb()));
@@ -371,7 +373,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByPawn[static_cast<int>(threatened)]);
     }
 
-    Bitboard knightThreats = evalData.attackedBy[us][PieceType::KNIGHT] & board.pieces(them);
+    Bitboard knightThreats = evalData.attackedBy[us][KNIGHT] & board.pieces(them);
     while (knightThreats.any())
     {
         Square threat = knightThreats.poplsb();
@@ -381,7 +383,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByKnight[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard bishopThreats = evalData.attackedBy[us][PieceType::BISHOP] & board.pieces(them);
+    Bitboard bishopThreats = evalData.attackedBy[us][BISHOP] & board.pieces(them);
     while (bishopThreats.any())
     {
         Square threat = bishopThreats.poplsb();
@@ -391,7 +393,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByBishop[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard rookThreats = evalData.attackedBy[us][PieceType::ROOK] & board.pieces(them);
+    Bitboard rookThreats = evalData.attackedBy[us][ROOK] & board.pieces(them);
     while (rookThreats.any())
     {
         Square threat = rookThreats.poplsb();
@@ -401,7 +403,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByRook[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard queenThreats = evalData.attackedBy[us][PieceType::QUEEN] & board.pieces(them);
+    Bitboard queenThreats = evalData.attackedBy[us][QUEEN] & board.pieces(them);
     while (queenThreats.any())
     {
         Square threat = queenThreats.poplsb();
@@ -411,7 +413,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByQueen[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard kingThreats = evalData.attackedBy[us][PieceType::KING] & board.pieces(them) & ~defendedBB;
+    Bitboard kingThreats = evalData.attackedBy[us][KING] & board.pieces(them) & ~defendedBB;
     while (kingThreats.any())
     {
         PieceType threatened = getPieceType(board.pieceAt(kingThreats.poplsb()));
@@ -419,12 +421,11 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByKing[static_cast<int>(threatened)]);
     }
 
-    Bitboard nonPawnEnemies = board.pieces(them) & ~board.pieces(PieceType::PAWN);
+    Bitboard nonPawnEnemies = board.pieces(them) & ~board.pieces(PAWN);
 
     Bitboard safe = ~defendedBB
-        | (evalData.attacked[us] & ~evalData.attackedBy[them][PieceType::PAWN]
-            & ~evalData.attackedBy2[them]);
-    Bitboard pushes = attacks::pawnPushes<us>(board.pieces(us, PieceType::PAWN)) & ~board.allPieces();
+        | (evalData.attacked[us] & ~evalData.attackedBy[them][PAWN] & ~evalData.attackedBy2[them]);
+    Bitboard pushes = attacks::pawnPushes<us>(board.pieces(us, PAWN)) & ~board.allPieces();
     pushes |= attacks::pawnPushes<us>(pushes & Bitboard::nthRank<us, RANK_3>()) & ~board.allPieces();
 
     Bitboard pushThreats = attacks::pawnAttacks<us>(pushes & safe) & nonPawnEnemies;
@@ -436,7 +437,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
     eval += RESTRICTED_SQUARES * restriction.popcount();
     TRACE_ADD(restrictedSquares, restriction.popcount());
 
-    Bitboard oppQueens = board.pieces(them, PieceType::QUEEN);
+    Bitboard oppQueens = board.pieces(them, QUEEN);
     if (oppQueens.one())
     {
         Square oppQueen = oppQueens.lsb();
@@ -444,23 +445,17 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         Bitboard bishopHits = attacks::bishopAttacks(oppQueen, board.allPieces());
         Bitboard rookHits = attacks::rookAttacks(oppQueen, board.allPieces());
 
-        Bitboard targets = safe & ~board.pieces(us, PieceType::PAWN);
+        Bitboard targets = safe & ~board.pieces(us, PAWN);
 
-        eval += KNIGHT_HIT_QUEEN
-            * (targets & knightHits & evalData.attackedBy[us][PieceType::KNIGHT]).popcount();
-        TRACE_ADD(knightHitQueen,
-            (targets & knightHits & evalData.attackedBy[us][PieceType::KNIGHT]).popcount());
+        eval += KNIGHT_HIT_QUEEN * (targets & knightHits & evalData.attackedBy[us][KNIGHT]).popcount();
+        TRACE_ADD(knightHitQueen, (targets & knightHits & evalData.attackedBy[us][KNIGHT]).popcount());
 
         targets &= evalData.attackedBy2[us];
-        eval += BISHOP_HIT_QUEEN
-            * (targets & bishopHits & evalData.attackedBy[us][PieceType::BISHOP]).popcount();
-        TRACE_ADD(bishopHitQueen,
-            (targets & bishopHits & evalData.attackedBy[us][PieceType::BISHOP]).popcount());
+        eval += BISHOP_HIT_QUEEN * (targets & bishopHits & evalData.attackedBy[us][BISHOP]).popcount();
+        TRACE_ADD(bishopHitQueen, (targets & bishopHits & evalData.attackedBy[us][BISHOP]).popcount());
 
-        eval += ROOK_HIT_QUEEN
-            * (targets & rookHits & evalData.attackedBy[us][PieceType::ROOK]).popcount();
-        TRACE_ADD(rookHitQueen,
-            (targets & rookHits & evalData.attackedBy[us][PieceType::ROOK]).popcount());
+        eval += ROOK_HIT_QUEEN * (targets & rookHits & evalData.attackedBy[us][ROOK]).popcount();
+        TRACE_ADD(rookHitQueen, (targets & rookHits & evalData.attackedBy[us][ROOK]).popcount());
     }
 
     return eval;
@@ -479,7 +474,7 @@ ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns
         bool blocked = false;
         if (filePawns.any())
         {
-            Square filePawn = us == Color::WHITE ? filePawns.msb() : filePawns.lsb();
+            Square filePawn = us == WHITE ? filePawns.msb() : filePawns.lsb();
             rank = filePawn.relativeRank<them>();
             blocked = theirPawns.has(filePawn + attacks::pawnPushOffset<us>());
         }
@@ -489,7 +484,7 @@ ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns
     {
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
         int rank = filePawns.any()
-            ? (us == Color::WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>()
+            ? (us == WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>()
             : 0;
         eval += PAWN_SHIELD[edgeDist][rank];
         TRACE_INC(pawnShield[edgeDist][rank]);
@@ -507,8 +502,8 @@ template<Color us>
 ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
-    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PAWN);
+    Bitboard theirPawns = board.pieces(them, PAWN);
 
     Square theirKing = board.kingSq(them);
 
@@ -522,38 +517,14 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
     Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
     Bitboard bishopCheckSquares = attacks::bishopAttacks(theirKing, board.allPieces());
 
-    Bitboard knightChecks =
-        evalData.attackedBy[us][PieceType::KNIGHT] & attacks::knightAttacks(theirKing);
-    Bitboard bishopChecks = evalData.attackedBy[us][PieceType::BISHOP] & bishopCheckSquares;
-    Bitboard rookChecks = evalData.attackedBy[us][PieceType::ROOK] & rookCheckSquares;
-    Bitboard queenChecks =
-        evalData.attackedBy[us][PieceType::QUEEN] & (bishopCheckSquares | rookCheckSquares);
+    Bitboard knightChecks = evalData.attackedBy[us][KNIGHT] & attacks::knightAttacks(theirKing);
+    Bitboard bishopChecks = evalData.attackedBy[us][BISHOP] & bishopCheckSquares;
+    Bitboard rookChecks = evalData.attackedBy[us][ROOK] & rookCheckSquares;
+    Bitboard queenChecks = evalData.attackedBy[us][QUEEN] & (bishopCheckSquares | rookCheckSquares);
 
-    Bitboard weak = ~evalData.attacked[them]
-        | (~evalData.attackedBy2[them] & evalData.attackedBy[them][PieceType::KING]);
+    Bitboard weak =
+        ~evalData.attacked[them] | (~evalData.attackedBy2[them] & evalData.attackedBy[them][KING]);
     Bitboard safe = ~board.pieces(us) & (~evalData.attacked[them] | (weak & evalData.attackedBy2[us]));
-
-    TRACE_ADD(safeKnightCheck, (knightChecks & safe).popcount());
-    TRACE_ADD(safeBishopCheck, (bishopChecks & safe).popcount());
-    TRACE_ADD(safeRookCheck, (rookChecks & safe).popcount());
-    TRACE_ADD(safeQueenCheck, (queenChecks & safe).popcount());
-
-    TRACE_ADD(unsafeKnightCheck, (knightChecks & ~safe).popcount());
-    TRACE_ADD(unsafeBishopCheck, (bishopChecks & ~safe).popcount());
-    TRACE_ADD(unsafeRookCheck, (rookChecks & ~safe).popcount());
-    TRACE_ADD(unsafeQueenCheck, (queenChecks & ~safe).popcount());
-
-    bool queenless = board.pieces(us, PieceType::QUEEN).empty();
-    TRACE_ADD(queenlessAttack, queenless);
-
-    int attackCount = evalData.attackCount[us];
-    TRACE_ADD(kingAttacks, attackCount);
-
-    Bitboard weakKingRing = (evalData.kingRing[them] & weak);
-    int weakSquares = weakKingRing.popcount();
-    TRACE_ADD(weakKingRing, weakSquares);
-
-    TRACE_INC(safetyOffset);
 
     eval += SAFE_KNIGHT_CHECK * (knightChecks & safe).popcount();
     eval += SAFE_BISHOP_CHECK * (bishopChecks & safe).popcount();
@@ -565,11 +536,30 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
     eval += UNSAFE_ROOK_CHECK * (rookChecks & ~safe).popcount();
     eval += UNSAFE_QUEEN_CHECK * (queenChecks & ~safe).popcount();
 
-    eval += QUEENLESS_ATTACK * queenless;
-    eval += evalData.attackWeight[us];
-    eval += KING_ATTACKS * attackCount;
+    TRACE_ADD(safeKnightCheck, (knightChecks & safe).popcount());
+    TRACE_ADD(safeBishopCheck, (bishopChecks & safe).popcount());
+    TRACE_ADD(safeRookCheck, (rookChecks & safe).popcount());
+    TRACE_ADD(safeQueenCheck, (queenChecks & safe).popcount());
 
+    TRACE_ADD(unsafeKnightCheck, (knightChecks & ~safe).popcount());
+    TRACE_ADD(unsafeBishopCheck, (bishopChecks & ~safe).popcount());
+    TRACE_ADD(unsafeRookCheck, (rookChecks & ~safe).popcount());
+    TRACE_ADD(unsafeQueenCheck, (queenChecks & ~safe).popcount());
+
+    bool queenless = board.pieces(us, QUEEN).empty();
+    eval += QUEENLESS_ATTACK * queenless;
+    TRACE_ADD(queenlessAttack, queenless);
+
+    eval += evalData.attackWeight[us];
+
+    int attackCount = evalData.attackCount[us];
+    eval += KING_ATTACKS * attackCount;
+    TRACE_ADD(kingAttacks, attackCount);
+
+    Bitboard weakKingRing = (evalData.kingRing[them] & weak);
+    int weakSquares = weakKingRing.popcount();
     eval += WEAK_KING_RING * weakSquares;
+    TRACE_ADD(weakKingRing, weakSquares);
 
     Bitboard flankAttacks = evalData.kingFlank[them] & evalData.attacked[us];
     Bitboard flankAttacks2 = evalData.kingFlank[them] & evalData.attackedBy2[us];
@@ -587,6 +577,7 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
     TRACE_ADD(kingFlankDefenses[1], flankDefenses2.popcount());
 
     eval += SAFETY_OFFSET;
+    TRACE_INC(safetyOffset);
 
     ScorePair safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
     return safety;
@@ -597,14 +588,14 @@ ScorePair evaluateComplexity(
 {
     constexpr Bitboard KING_SIDE = FILE_A_BB | FILE_B_BB | FILE_C_BB | FILE_D_BB;
     constexpr Bitboard QUEEN_SIDE = ~KING_SIDE;
-    Bitboard pawns = board.pieces(PieceType::PAWN);
+    Bitboard pawns = board.pieces(PAWN);
     bool pawnsBothSides = (pawns & KING_SIDE).any() && (pawns & QUEEN_SIDE).any();
-    bool pawnEndgame = board.allPieces() == (pawns | board.pieces(PieceType::KING));
+    bool pawnEndgame = board.allPieces() == (pawns | board.pieces(KING));
 
-    trace.complexityPawns[Color::WHITE] += pawns.popcount();
-    trace.complexityPawnsBothSides[Color::WHITE] += pawnsBothSides;
-    trace.complexityPawnEndgame[Color::WHITE] += pawnEndgame;
-    trace.complexityOffset[Color::WHITE] = 1;
+    trace.complexityPawns[WHITE] += pawns.popcount();
+    trace.complexityPawnsBothSides[WHITE] += pawnsBothSides;
+    trace.complexityPawnEndgame[WHITE] += pawnEndgame;
+    trace.complexityOffset[WHITE] = 1;
 
     ScorePair complexity = COMPLEXITY_PAWNS * pawns.popcount()
         + COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides + COMPLEXITY_PAWN_ENDGAME * pawnEndgame
@@ -621,16 +612,16 @@ template<Color us>
 void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& pawnStructure)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard ourPawns = board.pieces(us, PAWN);
     Bitboard blockedPawns = ourPawns & attacks::pawnPushes<them>(board.allPieces());
     Square ourKing = board.kingSq(us);
 
     evalData.mobilityArea[us] =
         ~pawnStructure.pawnAttacks[them] & ~Bitboard::fromSquare(ourKing) & ~blockedPawns;
-    evalData.attacked[us] = evalData.attackedBy[us][PieceType::PAWN] = pawnStructure.pawnAttacks[us];
+    evalData.attacked[us] = evalData.attackedBy[us][PAWN] = pawnStructure.pawnAttacks[us];
 
     Bitboard ourKingAtks = attacks::kingAttacks(ourKing);
-    evalData.attackedBy[us][PieceType::KING] = ourKingAtks;
+    evalData.attackedBy[us][KING] = ourKingAtks;
     evalData.attackedBy2[us] = evalData.attacked[us] & ourKingAtks;
     evalData.attacked[us] |= ourKingAtks;
     evalData.kingRing[us] =
@@ -646,11 +637,10 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
 ScorePair evaluatePsqt(const Board& board, Trace& trace)
 {
     ScorePair eval{0, 0};
-    for (Color c : {Color::WHITE, Color::BLACK})
+    for (Color c : {WHITE, BLACK})
     {
         bool mirror = board.kingSq(c).file() >= FILE_E;
-        for (PieceType pt : {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK,
-                 PieceType::QUEEN, PieceType::KING})
+        for (PieceType pt : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING})
         {
             Bitboard pieces = board.pieces(c, pt);
             while (pieces.any())
@@ -658,14 +648,14 @@ ScorePair evaluatePsqt(const Board& board, Trace& trace)
                 Square sq = pieces.poplsb();
                 // hack for now
                 int x = 0;
-                if (c == Color::WHITE)
+                if (c == WHITE)
                     x ^= 56;
                 if (mirror)
                     x ^= 7;
                 trace.psqt[static_cast<int>(pt)][sq.value() ^ x][c]++;
                 ScorePair d =
                     MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq.value() ^ x];
-                if (c == Color::WHITE)
+                if (c == WHITE)
                     eval += d;
                 else
                     eval -= d;
@@ -678,11 +668,9 @@ ScorePair evaluatePsqt(const Board& board, Trace& trace)
 
 double evaluateScale(const Board& board, ScorePair eval)
 {
-    Color strongSide = eval.eg() > 0 ? Color::WHITE
-        : eval.eg() < 0              ? Color::BLACK
-                                     : board.sideToMove();
+    Color strongSide = eval.eg() > 0 ? WHITE : eval.eg() < 0 ? BLACK : board.sideToMove();
 
-    int strongPawns = board.pieces(strongSide, PieceType::PAWN).popcount();
+    int strongPawns = board.pieces(strongSide, PAWN).popcount();
 
     return 80 + strongPawns * 7;
 }
@@ -696,34 +684,26 @@ Trace getTrace(const Board& board)
     PawnStructure pawnStructure(board);
 
     EvalData evalData = {};
-    initEvalData<Color::WHITE>(board, evalData, pawnStructure);
-    initEvalData<Color::BLACK>(board, evalData, pawnStructure);
+    initEvalData<WHITE>(board, evalData, pawnStructure);
+    initEvalData<BLACK>(board, evalData, pawnStructure);
 
     eval += evaluatePawns(board, pawnStructure, trace);
 
-    eval += evaluateKnightOutposts<Color::WHITE>(board, pawnStructure, trace)
-        - evaluateKnightOutposts<Color::BLACK>(board, pawnStructure, trace);
-    eval += evaluateBishopPawns<Color::WHITE>(board, trace)
-        - evaluateBishopPawns<Color::BLACK>(board, trace);
-    eval += evaluateRookOpen<Color::WHITE>(board, trace) - evaluateRookOpen<Color::BLACK>(board, trace);
-    eval += evaluateMinorBehindPawn<Color::WHITE>(board, trace)
-        - evaluateMinorBehindPawn<Color::BLACK>(board, trace);
+    // clang-format off
+    eval += evaluateKnightOutposts<WHITE>(board, pawnStructure, trace) - evaluateKnightOutposts<BLACK>(board, pawnStructure, trace);
+    eval += evaluateBishopPawns<WHITE>(board, trace) - evaluateBishopPawns<BLACK>(board, trace);
+    eval += evaluateRookOpen<WHITE>(board, trace) - evaluateRookOpen<BLACK>(board, trace);
+    eval += evaluateMinorBehindPawn<WHITE>(board, trace) - evaluateMinorBehindPawn<BLACK>(board, trace);
 
-    eval += evaluatePieces<Color::WHITE, PieceType::KNIGHT>(board, evalData, trace)
-        - evaluatePieces<Color::BLACK, PieceType::KNIGHT>(board, evalData, trace);
-    eval += evaluatePieces<Color::WHITE, PieceType::BISHOP>(board, evalData, trace)
-        - evaluatePieces<Color::BLACK, PieceType::BISHOP>(board, evalData, trace);
-    eval += evaluatePieces<Color::WHITE, PieceType::ROOK>(board, evalData, trace)
-        - evaluatePieces<Color::BLACK, PieceType::ROOK>(board, evalData, trace);
-    eval += evaluatePieces<Color::WHITE, PieceType::QUEEN>(board, evalData, trace)
-        - evaluatePieces<Color::BLACK, PieceType::QUEEN>(board, evalData, trace);
+    eval += evaluatePieces<WHITE, KNIGHT>(board, evalData, trace) - evaluatePieces<BLACK, KNIGHT>(board, evalData, trace);
+    eval += evaluatePieces<WHITE, BISHOP>(board, evalData, trace) - evaluatePieces<BLACK, BISHOP>(board, evalData, trace);
+    eval += evaluatePieces<WHITE, ROOK>(board, evalData, trace) - evaluatePieces<BLACK, ROOK>(board, evalData, trace);
+    eval += evaluatePieces<WHITE, QUEEN>(board, evalData, trace) - evaluatePieces<BLACK, QUEEN>(board, evalData, trace);
 
-    eval += evaluateKings<Color::WHITE>(board, evalData, trace)
-        - evaluateKings<Color::BLACK>(board, evalData, trace);
-    eval += evaluatePassedPawns<Color::WHITE>(board, pawnStructure, evalData, trace)
-        - evaluatePassedPawns<Color::BLACK>(board, pawnStructure, evalData, trace);
-    eval += evaluateThreats<Color::WHITE>(board, evalData, trace)
-        - evaluateThreats<Color::BLACK>(board, evalData, trace);
+    eval += evaluateKings<WHITE>(board, evalData, trace) - evaluateKings<BLACK>(board, evalData, trace);
+    eval += evaluatePassedPawns<WHITE>(board, pawnStructure, evalData, trace) - evaluatePassedPawns<BLACK>(board, pawnStructure, evalData, trace);
+    eval += evaluateThreats<WHITE>(board, evalData, trace) - evaluateThreats<BLACK>(board, evalData, trace);
+    // clang-format on
 
     eval += evaluateComplexity(board, pawnStructure, eval, trace);
 
@@ -731,7 +711,7 @@ Trace getTrace(const Board& board)
 
     trace.egScale = evaluateScale(board, eval) / 128.0;
 
-    eval += (board.sideToMove() == Color::WHITE ? TEMPO : -TEMPO);
+    eval += (board.sideToMove() == WHITE ? TEMPO : -TEMPO);
 
     return trace;
 }
