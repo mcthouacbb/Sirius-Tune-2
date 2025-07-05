@@ -1295,6 +1295,19 @@ EvalParams extractMaterial(const EvalParams& params)
             auto avg = avgValue(rebalanced, TRACE_OFFSET(psqt[pce]), TRACE_SIZE(psqt[pce]));
             rebalance(avg, material[pce], rebalanced, TRACE_OFFSET(psqt[pce]), TRACE_SIZE(psqt[pce]));
         }
+
+        if (pce == 5)
+        {
+            int offset = TRACE_OFFSET(psqt[pce]);
+            for (int rank = 0; rank < 8; rank++)
+            {
+                for (int file = 4; file < 8; file++)
+                {
+                    rebalanced[offset + rank * 8 + file].mg = 0;
+                    rebalanced[offset + rank * 8 + file].eg = 0;
+                }
+            }
+        }
     }
 
     // mobility
