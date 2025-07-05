@@ -185,9 +185,6 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
     constexpr Color them = ~us;
     constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
 
-    Bitboard ourPawns = board.pieces(us, PAWN);
-    Bitboard theirPawns = board.pieces(them, PAWN);
-
     ScorePair eval{0, 0};
     Bitboard pieces = board.pieces(us, piece);
     if constexpr (piece == BISHOP)
@@ -204,8 +201,6 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         occupancy ^= board.pieces(us, ROOK) | board.pieces(us, QUEEN);
     else if constexpr (piece == QUEEN)
         occupancy ^= board.pieces(us, BISHOP) | board.pieces(us, ROOK);
-
-    Bitboard outpostSquares = RANK_4_BB | RANK_5_BB | (us == WHITE ? RANK_6_BB : RANK_3_BB);
 
     while (pieces.any())
     {
