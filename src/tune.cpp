@@ -1,9 +1,9 @@
 #include "tune.h"
 #include "eval_fn.h"
-#include "thread_pool.h"
 #include "settings.h"
-#include <iostream>
+#include "thread_pool.h"
 #include <chrono>
+#include <iostream>
 
 double sigmoid(double x, double k)
 {
@@ -88,7 +88,8 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     return evaluate(pos, coefficients, params, trace);
 }
 
-double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params)
+double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
+    const EvalParams& params)
 {
     constexpr double SEARCH_MAX = 1;
     constexpr int ITERATIONS = 7;
@@ -99,7 +100,8 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
     for (int i = 0; i < ITERATIONS; i++)
     {
         std::cout << "Iteration: " << i << std::endl;
-        std::cout << "Start: " << start + step << " End: " << end + step << " Step: " << step << std::endl;
+        std::cout << "Start: " << start + step << " End: " << end + step << " Step: " << step
+                  << std::endl;
         for (double curr = start + step; curr < end + step; curr += step)
         {
             double error = calcError(threadPool, positions, coefficients, curr, params);
@@ -120,7 +122,8 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
     return bestK;
 }
 
-double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params)
+double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
+    double kValue, const EvalParams& params)
 {
     std::vector<double> threadErrors(threadPool.concurrency());
     for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
@@ -128,17 +131,18 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
         size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
         size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
         std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
-        threadPool.addTask([threadID, &threadErrors, threadPositions, coefficients, kValue, &params]()
-        {
-            double error = 0.0;
-            for (auto& pos : threadPositions)
+        threadPool.addTask(
+            [threadID, &threadErrors, threadPositions, coefficients, kValue, &params]()
             {
-                double eval = evaluate(pos, coefficients, params);
-                double diff = sigmoid(eval, kValue) - pos.wdl;
-                error += diff * diff;
-            }
-            threadErrors[threadID] = error;
-        });
+                double error = 0.0;
+                for (auto& pos : threadPositions)
+                {
+                    double eval = evaluate(pos, coefficients, params);
+                    double diff = sigmoid(eval, kValue) - pos.wdl;
+                    error += diff * diff;
+                }
+                threadErrors[threadID] = error;
+            });
     }
     threadPool.wait();
     double error = 0.0;
@@ -147,7 +151,8 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
     return error / static_cast<double>(positions.size());
 }
 
-void updateGradient(const Position& pos, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
+void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
+    const EvalParams& params, std::vector<Gradient>& gradients)
 {
     EvalTrace trace = {};
     double eval = evaluate(pos, coefficients, params, trace);
@@ -170,24 +175,30 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue, con
         {
             if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
             {
-                gradients[coeff.index].mg += coeff.white * mgBase * safetyDerivMg(trace.rawSafety[Color::WHITE].mg);
-                gradients[coeff.index].mg -= coeff.black * mgBase * safetyDerivMg(trace.rawSafety[Color::BLACK].mg);
+                gradients[coeff.index].mg +=
+                    coeff.white * mgBase * safetyDerivMg(trace.rawSafety[Color::WHITE].mg);
+                gradients[coeff.index].mg -=
+                    coeff.black * mgBase * safetyDerivMg(trace.rawSafety[Color::BLACK].mg);
             }
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
             {
-                gradients[coeff.index].eg += coeff.white * egBase * pos.egScale * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
-                gradients[coeff.index].eg -= coeff.black * egBase * pos.egScale * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
+                gradients[coeff.index].eg += coeff.white * egBase * pos.egScale
+                    * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
+                gradients[coeff.index].eg -= coeff.black * egBase * pos.egScale
+                    * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
             }
         }
         else if (type == ParamType::COMPLEXITY)
         {
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
-                gradients[coeff.index].eg += egBase * coeff.white * pos.egScale * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
+                gradients[coeff.index].eg += egBase * coeff.white * pos.egScale
+                    * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
     }
 }
 
-void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
+void computeGradient(ThreadPool& threadPool, std::span<const Position> positions,
+    Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
 {
     std::fill(gradients.begin(), gradients.end(), Gradient{0, 0});
 
@@ -198,11 +209,12 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
         size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
         size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
         std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
-        threadPool.addTask([threadID, &threadGradients, threadPositions, coefficients, kValue, &params]()
-        {
-            for (const auto& pos : threadPositions)
-                updateGradient(pos, coefficients, kValue, params, threadGradients[threadID]);
-        });
+        threadPool.addTask(
+            [threadID, &threadGradients, threadPositions, coefficients, kValue, &params]()
+            {
+                for (const auto& pos : threadPositions)
+                    updateGradient(pos, coefficients, kValue, params, threadGradients[threadID]);
+            });
     }
 
     threadPool.wait();
@@ -226,7 +238,9 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
 {
     ThreadPool threadPool(TUNE_THREADS);
     EvalParams params = EvalFn::getInitialParams();
-    double kValue = TUNE_K <= 0 ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, EvalFn::getKParams()) : TUNE_K;
+    double kValue = TUNE_K <= 0
+        ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, EvalFn::getKParams())
+        : TUNE_K;
     std::cout << "Final k value: " << kValue << std::endl;
     outFile << "Final k value: " << kValue << std::endl;
     if constexpr (TUNE_FROM_ZERO)
@@ -251,11 +265,10 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     {
         for (int batch = 0; batch < dataset.positions.size() / BATCH_SIZE; batch++)
         {
-            std::span<const Position> batchPositions = {
-                dataset.positions.begin() + batch * BATCH_SIZE,
-                std::min<size_t>(BATCH_SIZE, dataset.positions.size() - batch * BATCH_SIZE)
-            };
-            computeGradient(threadPool, batchPositions, dataset.allCoefficients, kValue, params, gradient);
+            std::span<const Position> batchPositions = {dataset.positions.begin() + batch * BATCH_SIZE,
+                std::min<size_t>(BATCH_SIZE, dataset.positions.size() - batch * BATCH_SIZE)};
+            computeGradient(
+                threadPool, batchPositions, dataset.allCoefficients, kValue, params, gradient);
 
             for (int i = 0; i < gradient.size(); i++)
             {
@@ -271,32 +284,32 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
         }
         if (epoch % 10 == 0)
         {
-            double error = calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue, params);
+            double error =
+                calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue, params);
             std::cout << "Epoch: " << epoch << std::endl;
             std::cout << "Error: " << error << std::endl;
             outFile << "Epoch: " << epoch << std::endl;
             outFile << "Error: " << error << std::endl;
 
             auto t2 = std::chrono::steady_clock::now();
-            auto totalTime = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count();
+            auto totalTime =
+                std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count();
             std::cout << "Epochs/s (total): " << static_cast<double>(epoch) / totalTime << std::endl;
-            std::cout << "Epochs/s (avg of last 100): " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
+            std::cout << "Epochs/s (avg of last 10): "
+                      << 10.0f
+                    / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count()
+                      << std::endl;
             std::cout << "Total time: " << totalTime << std::endl;
             outFile << "Epochs/s (total): " << static_cast<double>(epoch) / totalTime << std::endl;
-            outFile << "Epochs/s (avg of last 100): " << 100.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() << std::endl;
+            outFile << "Epochs/s (avg of last 10): "
+                    << 10.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count()
+                    << std::endl;
             outFile << "Total time: " << totalTime << std::endl;
 
             t1 = t2;
             EvalFn::printEvalParams(params, std::cout);
-            std::cout << std::endl;/*
+            std::cout << std::endl;
 
-            EvalParams extracted = params;
-            for (auto& param : extracted)
-            {
-                param.mg = std::round(param.mg);
-                param.eg = std::round(param.eg);
-            }*/
-            //EvalFn::printEvalParamsExtracted(extracted, outFile);
             EvalFn::printEvalParamsExtracted(params, outFile);
             outFile << std::endl;
         }

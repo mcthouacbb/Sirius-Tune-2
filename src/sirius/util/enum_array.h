@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../defs.h"
+#include <array>
 
 template<typename T, typename E, size_t N>
 struct EnumArray : public std::array<T, N>
@@ -23,4 +24,3 @@ using ColorArray = EnumArray<T, Color, 2>;
 
 template<typename T>
 using PieceTypeArray = EnumArray<T, PieceType, 6>;
-
