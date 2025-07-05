@@ -5,7 +5,6 @@
 #include <chrono>
 #include <iostream>
 
-
 double sigmoid(double x, double k)
 {
     return 1.0 / (1 + exp(-x * k));
@@ -296,29 +295,21 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
             auto totalTime =
                 std::chrono::duration_cast<std::chrono::duration<double>>(t2 - startTime).count();
             std::cout << "Epochs/s (total): " << static_cast<double>(epoch) / totalTime << std::endl;
-            std::cout << "Epochs/s (avg of last 100): "
-                      << 100.0f
+            std::cout << "Epochs/s (avg of last 10): "
+                      << 10.0f
                     / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count()
                       << std::endl;
             std::cout << "Total time: " << totalTime << std::endl;
             outFile << "Epochs/s (total): " << static_cast<double>(epoch) / totalTime << std::endl;
-            outFile << "Epochs/s (avg of last 100): "
-                    << 100.0f
-                    / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count()
+            outFile << "Epochs/s (avg of last 10): "
+                    << 10.0f / std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count()
                     << std::endl;
             outFile << "Total time: " << totalTime << std::endl;
 
             t1 = t2;
             EvalFn::printEvalParams(params, std::cout);
-            std::cout << std::endl; /*
+            std::cout << std::endl;
 
-             EvalParams extracted = params;
-             for (auto& param : extracted)
-             {
-                 param.mg = std::round(param.mg);
-                 param.eg = std::round(param.eg);
-             }*/
-            // EvalFn::printEvalParamsExtracted(extracted, outFile);
             EvalFn::printEvalParamsExtracted(params, outFile);
             outFile << std::endl;
         }

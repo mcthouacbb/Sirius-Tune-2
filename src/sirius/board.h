@@ -227,10 +227,10 @@ private:
     void updateCheckInfo();
     void calcThreats();
     void calcRepetitions();
-    void addPiece(Square pos, Color color, PieceType pieceType, eval::EvalUpdates& updates);
-    void addPiece(Square pos, Piece piece, eval::EvalUpdates& updates);
-    void removePiece(Square pos, eval::EvalUpdates& updates);
-    void movePiece(Square src, Square dst, eval::EvalUpdates& updates);
+    void addPiece(Square pos, Color color, PieceType pieceType /*, eval::EvalUpdates& updates*/);
+    void addPiece(Square pos, Piece piece /*, eval::EvalUpdates& updates*/);
+    void removePiece(Square pos /*, eval::EvalUpdates& updates*/);
+    void movePiece(Square src, Square dst /*, eval::EvalUpdates& updates*/);
 
     int seePieceValue(PieceType type) const;
 

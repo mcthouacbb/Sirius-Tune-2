@@ -1,9 +1,10 @@
 #pragma once
 
 #include "dataset.h"
-#include "tune.h"
 #include "sirius/board.h"
+#include "tune.h"
 #include <algorithm>
+
 
 class EvalFn
 {
@@ -17,14 +18,16 @@ public:
     static EvalParams getKParams();
     static void printEvalParams(const EvalParams& params, std::ostream& os);
     static void printEvalParamsExtracted(const EvalParams& params, std::ostream& os);
+
 private:
     template<typename T>
     void addCoefficient(const T& trace, ParamType type)
     {
-        if ((type == ParamType::NORMAL && trace[0] - trace[1] != 0) ||
-            (type == ParamType::COMPLEXITY && trace[0] != 0) ||
-            (type == ParamType::SAFETY && trace[0] != 0 || trace[1] != 0))
-            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx), static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
+        if ((type == ParamType::NORMAL && trace[0] - trace[1] != 0)
+            || (type == ParamType::COMPLEXITY && trace[0] != 0)
+            || (type == ParamType::SAFETY && (trace[0] != 0 || trace[1] != 0)))
+            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx),
+                static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
         m_TraceIdx++;
     }
 

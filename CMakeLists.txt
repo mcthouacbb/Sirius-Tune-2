@@ -19,7 +19,12 @@ set(SRCS
     "src/sirius/bitboard.h"
     "src/sirius/board.cpp"
     "src/sirius/board.h"
+    "src/sirius/castling.h"
+    "src/sirius/cuckoo.cpp"
+    "src/sirius/cuckoo.h"
     "src/sirius/defs.h"
+    "src/sirius/movegen.cpp"
+    "src/sirius/movegen.h"
     "src/sirius/zobrist.h"
 
     "src/dataset.cpp"
