@@ -41,6 +41,7 @@ struct Trace
     TraceElem passedPawn[2][2][8];
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
+    TraceElem passerDefendedPush[8];
 
     TraceElem pawnStorm[2][4][8];
     TraceElem pawnShield[4][8];
@@ -339,6 +340,12 @@ ScorePair evaluatePassedPawns(
             eval += THEIR_PASSER_PROXIMITY[Square::chebyshev(theirKing, pushSq)];
             TRACE_INC(ourPasserProximity[Square::chebyshev(ourKing, pushSq)]);
             TRACE_INC(theirPasserProximity[Square::chebyshev(theirKing, pushSq)]);
+
+            if (evalData.attacked[us].has(pushSq))
+            {
+                eval += PASSER_DEFENDED_PUSH[rank];
+                TRACE_INC(passerDefendedPush[rank]);
+            }
         }
     }
 
@@ -753,6 +760,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray3D(trace.passedPawn, ParamType::NORMAL);
     addCoefficientArray(trace.ourPasserProximity, ParamType::NORMAL);
     addCoefficientArray(trace.theirPasserProximity, ParamType::NORMAL);
+    addCoefficientArray(trace.passerDefendedPush, ParamType::NORMAL);
 
     addCoefficientArray3D(trace.pawnStorm, ParamType::SAFETY);
     addCoefficientArray2D(trace.pawnShield, ParamType::SAFETY);
@@ -850,6 +858,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray3D(params, PASSED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
+    addEvalParamArray(params, PASSER_DEFENDED_PUSH, ParamType::NORMAL);
 
     addEvalParamArray3D(params, PAWN_STORM, ParamType::SAFETY);
     addEvalParamArray2D(params, PAWN_SHIELD, ParamType::SAFETY);
@@ -1106,6 +1115,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair THEIR_PASSER_PROXIMITY[8] = ";
+    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr ScorePair PASSER_DEFENDED_PUSH[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
