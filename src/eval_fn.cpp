@@ -942,18 +942,20 @@ void printPSQTs(PrintState& state)
     state.ss << "constexpr ScorePair PSQT[6][64] = {\n";
     for (int pce = 0; pce < 6; pce++)
     {
-        state.ss << "\t{\n";
+        state.ss << "    {\n";
         for (int y = 0; y < 8; y++)
         {
-            state.ss << "\t\t";
+            state.ss << "        ";
             for (int x = 0; x < 8; x++)
             {
                 printSingle<ALIGN_SIZE>(state);
-                state.ss << ", ";
+                state.ss << ",";
+                if (x != 7)
+                    state.ss << " ";
             }
             state.ss << "\n";
         }
-        state.ss << "\t},\n";
+        state.ss << "    },\n";
     }
     state.ss << "};\n";
 }
@@ -988,16 +990,16 @@ void printArray2D(PrintState& state, int outerLen, int innerLen, bool indent = f
     state.ss << "{\n";
     for (int i = 0; i < outerLen; i++)
     {
-        state.ss << '\t';
+        state.ss << "    ";
         if (indent)
-            state.ss << '\t';
+            state.ss << "    ";
         printArray<ALIGN_SIZE>(state, innerLen);
         if (i != outerLen - 1)
             state.ss << ',';
         state.ss << '\n';
     }
     if (indent)
-        state.ss << '\t';
+        state.ss << "    ";
     state.ss << "}";
 }
 
@@ -1007,11 +1009,11 @@ void printArray3D(PrintState& state, int len1, int len2, int len3)
     state.ss << "{\n";
     for (int i = 0; i < len1; i++)
     {
-        state.ss << '\t';
+        state.ss << "    ";
         printArray2D<ALIGN_SIZE>(state, len2, len3, true);
         if (i != len1 - 1)
             state.ss << ',';
-        state.ss << '\n';
+        state.ss << "    ";
     }
     state.ss << "}";
 }
