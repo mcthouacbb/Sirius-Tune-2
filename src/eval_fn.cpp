@@ -332,7 +332,7 @@ ScorePair evaluatePassedPawns(
             Square pushSq = passer + attacks::pawnPushOffset<us>();
 
             bool blocked = board.pieceAt(pushSq) != Piece::NONE;
-            bool controlled = (evalData.attacked[them] & Bitboard::fromSquare(pushSq)).any();
+            bool controlled = evalData.attacked[them].has(pushSq);
             eval += PASSED_PAWN[blocked][controlled][rank];
             TRACE_INC(passedPawn[blocked][controlled][rank]);
 
