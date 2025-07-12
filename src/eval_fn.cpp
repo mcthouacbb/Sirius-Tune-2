@@ -1022,7 +1022,7 @@ void printArray3D(PrintState& state, int len1, int len2, int len3)
         printArray2D<ALIGN_SIZE>(state, len2, len3, true);
         if (i != len1 - 1)
             state.ss << ',';
-        state.ss << "    ";
+        state.ss << "\n";
     }
     state.ss << "}";
 }
