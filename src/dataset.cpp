@@ -49,6 +49,9 @@ Dataset loadDataset(std::ifstream& file)
         Board board;
         board.setToFen(std::string_view(line.begin(), line.begin() + sixthSpace));
 
+        if (board.checkers().any())
+            continue;
+
         auto [coeffBegin, coeffEnd, egScale] = eval.getCoefficients(board);
 
         Position pos;
