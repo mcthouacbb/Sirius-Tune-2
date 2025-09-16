@@ -30,6 +30,11 @@ double safetyDerivEg(double raw)
     return 1.0 / 8.0 + 2.0 * std::max(raw, 0.0) / 1024;
 }
 
+double trainingTarget(const Position& pos, double wdlLambda, double kValue)
+{
+    return wdlLambda * pos.wdl + (1 - wdlLambda) * sigmoid(pos.score, kValue);
+}
+
 struct EvalTrace
 {
     struct TraceElem
@@ -138,7 +143,7 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
                 for (auto& pos : threadPositions)
                 {
                     double eval = evaluate(pos, coefficients, params);
-                    double diff = sigmoid(eval, kValue) - pos.wdl;
+                    double diff = sigmoid(eval, kValue) - trainingTarget(pos, WDL_LAMBDA, kValue);
                     error += diff * diff;
                 }
                 threadErrors[threadID] = error;
@@ -157,7 +162,8 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
     EvalTrace trace = {};
     double eval = evaluate(pos, coefficients, params, trace);
     double wdl = sigmoid(eval, kValue);
-    double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
+    double target = trainingTarget(pos, WDL_LAMBDA, kValue);
+    double gradientBase = (wdl - target) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
     double egBase = gradientBase - mgBase;
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
