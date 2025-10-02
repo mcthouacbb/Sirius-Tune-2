@@ -5,3 +5,4 @@ build
 
 res/*.epd
 res/*.book
+.vscode
