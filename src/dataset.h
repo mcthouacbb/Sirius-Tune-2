@@ -16,6 +16,7 @@ struct Position
 {
     int coeffBegin;
     int coeffEnd;
+    int score;
     double wdl;
     double phase;
     double egScale;

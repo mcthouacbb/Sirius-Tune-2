@@ -3,6 +3,7 @@
 #include "sirius/board.h"
 
 #include <string>
+#include <charconv>
 
 constexpr struct
 {
@@ -46,6 +47,21 @@ Dataset loadDataset(std::ifstream& file)
             }
         }
 
+        size_t firstBar = line.find('|');
+        if (firstBar == std::string::npos)
+        {
+            std::cout << "Error: Invalid data: " << line << std::endl;
+            exit(1);
+        }
+
+        int score;
+        auto [ptr, ec] = std::from_chars(line.c_str() + firstBar + 2, line.c_str() + line.size(), score);
+        if (ec != std::errc())
+        {
+            std::cout << "Error: Invalid Data, Could not parse score: " << line << std::endl;
+            exit(1);
+        }
+
         Board board;
         board.setToFen(std::string_view(line.begin(), line.begin() + sixthSpace));
 
@@ -54,6 +70,7 @@ Dataset loadDataset(std::ifstream& file)
         Position pos;
         pos.coeffBegin = coeffBegin;
         pos.coeffEnd = coeffEnd;
+        pos.score = score;
         pos.wdl = wdlResult;
         pos.phase = 4 * board.pieces(PieceType::QUEEN).popcount()
             + 2 * board.pieces(PieceType::ROOK).popcount()

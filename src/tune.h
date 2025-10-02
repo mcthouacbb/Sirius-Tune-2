@@ -49,9 +49,4 @@ struct EvalParams
     std::vector<EvalParam> linear;
 };
 
-double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, const EvalParams& params);
-
-double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params);
-void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients);
-
 EvalParams tune(const Dataset& dataset, std::ofstream& outFile);

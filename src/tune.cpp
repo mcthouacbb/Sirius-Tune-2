@@ -30,6 +30,11 @@ double safetyDerivEg(double raw)
     return 1.0 / 8.0 + 2.0 * std::max(raw, 0.0) / 1024;
 }
 
+double trainingTarget(const Position& pos, double wdlLambda, double kValue, double scoreKValue)
+{
+    return wdlLambda * pos.wdl + (1 - wdlLambda) * sigmoid(pos.score, scoreKValue);
+}
+
 struct EvalTrace
 {
     struct TraceElem
@@ -88,14 +93,63 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     return evaluate(pos, coefficients, params, trace);
 }
 
+enum class ErrorType
+{
+    NORMAL,
+    EVAL_WDL,
+    SCORE_WDL
+};
+
+double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
+    double kValue, const EvalParams& params, ErrorType type, double scoreKValue)
+{
+    std::vector<double> threadErrors(threadPool.concurrency());
+    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+    {
+        size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
+        size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
+        std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
+        threadPool.addTask(
+            [threadID, &threadErrors, threadPositions, coefficients, kValue, &params, type, scoreKValue]()
+            {
+                double error = 0.0;
+                for (auto& pos : threadPositions)
+                {
+                    double eval = type == ErrorType::SCORE_WDL ? pos.score
+                                                               : evaluate(pos, coefficients, params);
+                    double target = type == ErrorType::NORMAL
+                        ? trainingTarget(pos, WDL_LAMBDA, kValue, scoreKValue)
+                        : pos.wdl;
+                    double diff = sigmoid(eval, kValue) - target;
+                    error += diff * diff;
+                }
+                threadErrors[threadID] = error;
+            });
+    }
+    threadPool.wait();
+    double error = 0.0;
+    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+        error += threadErrors[threadID];
+    return error / static_cast<double>(positions.size());
+}
+
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
-    const EvalParams& params)
+    const EvalParams& params, ErrorType type, double scoreKValue)
 {
     constexpr double SEARCH_MAX = 1;
     constexpr int ITERATIONS = 7;
 
     double start = 0, end = SEARCH_MAX, step = 0.025;
     double bestK = 0, bestError = 1e10;
+
+    if (type == ErrorType::EVAL_WDL)
+    {
+        std::cout << "Finding regular k" << std::endl;
+    }
+    else if (type == ErrorType::SCORE_WDL)
+    {
+        std::cout << "Finding score k" << std::endl;
+    }
 
     for (int i = 0; i < ITERATIONS; i++)
     {
@@ -104,7 +158,8 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
                   << std::endl;
         for (double curr = start + step; curr < end + step; curr += step)
         {
-            double error = calcError(threadPool, positions, coefficients, curr, params);
+            double error =
+                calcError(threadPool, positions, coefficients, curr, params, type, scoreKValue);
             std::cout << "K: " << curr << " Error: " << error << std::endl;
             if (error < bestError)
             {
@@ -122,42 +177,14 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
     return bestK;
 }
 
-double calcError(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
-    double kValue, const EvalParams& params)
-{
-    std::vector<double> threadErrors(threadPool.concurrency());
-    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
-    {
-        size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
-        size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
-        std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
-        threadPool.addTask(
-            [threadID, &threadErrors, threadPositions, coefficients, kValue, &params]()
-            {
-                double error = 0.0;
-                for (auto& pos : threadPositions)
-                {
-                    double eval = evaluate(pos, coefficients, params);
-                    double diff = sigmoid(eval, kValue) - pos.wdl;
-                    error += diff * diff;
-                }
-                threadErrors[threadID] = error;
-            });
-    }
-    threadPool.wait();
-    double error = 0.0;
-    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
-        error += threadErrors[threadID];
-    return error / static_cast<double>(positions.size());
-}
-
 void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
-    const EvalParams& params, std::vector<Gradient>& gradients)
+    const EvalParams& params, std::vector<Gradient>& gradients, double scoreKValue)
 {
     EvalTrace trace = {};
     double eval = evaluate(pos, coefficients, params, trace);
     double wdl = sigmoid(eval, kValue);
-    double gradientBase = (wdl - pos.wdl) * (wdl * (1 - wdl));
+    double target = trainingTarget(pos, WDL_LAMBDA, kValue, scoreKValue);
+    double gradientBase = (wdl - target) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
     double egBase = gradientBase - mgBase;
     for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
@@ -197,8 +224,8 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
     }
 }
 
-void computeGradient(ThreadPool& threadPool, std::span<const Position> positions,
-    Coeffs coefficients, double kValue, const EvalParams& params, std::vector<Gradient>& gradients)
+void computeGradient(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
+    double kValue, const EvalParams& params, std::vector<Gradient>& gradients, double scoreKValue)
 {
     std::fill(gradients.begin(), gradients.end(), Gradient{0, 0});
 
@@ -210,10 +237,11 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
         size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
         std::span<const Position> threadPositions = positions.subspan(beginIdx, endIdx - beginIdx);
         threadPool.addTask(
-            [threadID, &threadGradients, threadPositions, coefficients, kValue, &params]()
+            [threadID, &threadGradients, threadPositions, coefficients, kValue, &params, scoreKValue]()
             {
                 for (const auto& pos : threadPositions)
-                    updateGradient(pos, coefficients, kValue, params, threadGradients[threadID]);
+                    updateGradient(
+                        pos, coefficients, kValue, params, threadGradients[threadID], scoreKValue);
             });
     }
 
@@ -238,11 +266,21 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
 {
     ThreadPool threadPool(TUNE_THREADS);
     EvalParams params = EvalFn::getInitialParams();
-    double kValue = TUNE_K <= 0
-        ? findKValue(threadPool, dataset.positions, dataset.allCoefficients, EvalFn::getKParams())
-        : TUNE_K;
-    std::cout << "Final k value: " << kValue << std::endl;
+    double scoreKValue = findKValue(threadPool, dataset.positions, dataset.allCoefficients,
+        EvalFn::getKParams(), ErrorType::SCORE_WDL, 0.0);
+    double originalKValue = findKValue(threadPool, dataset.positions, dataset.allCoefficients,
+        EvalFn::getKParams(), ErrorType::EVAL_WDL, scoreKValue);
+    double kValue = TUNE_K <= 0 ? findKValue(threadPool, dataset.positions, dataset.allCoefficients,
+                                      EvalFn::getKParams(), ErrorType::NORMAL, scoreKValue)
+                                : TUNE_K;
+
+    std::cout << "Final normal k value: " << kValue << std::endl;
+    std::cout << "Final wdl k value: " << originalKValue << std::endl;
+    std::cout << "Final score k value: " << scoreKValue << std::endl;
     outFile << "Final k value: " << kValue << std::endl;
+    outFile << "Final wdl k value: " << originalKValue << std::endl;
+    outFile << "Final score k value: " << scoreKValue << std::endl;
+
     if constexpr (TUNE_FROM_ZERO)
         for (auto& param : params.linear)
             param.mg = param.eg = 0;
@@ -267,8 +305,8 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
         {
             std::span<const Position> batchPositions = {dataset.positions.begin() + batch * BATCH_SIZE,
                 std::min<size_t>(BATCH_SIZE, dataset.positions.size() - batch * BATCH_SIZE)};
-            computeGradient(
-                threadPool, batchPositions, dataset.allCoefficients, kValue, params, gradient);
+            computeGradient(threadPool, batchPositions, dataset.allCoefficients, kValue, params,
+                gradient, scoreKValue);
 
             for (int i = 0; i < gradient.size(); i++)
             {
@@ -284,8 +322,8 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
         }
         if (epoch % 10 == 0)
         {
-            double error =
-                calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue, params);
+            double error = calcError(threadPool, dataset.positions, dataset.allCoefficients, kValue,
+                params, ErrorType::NORMAL, scoreKValue);
             std::cout << "Epoch: " << epoch << std::endl;
             std::cout << "Error: " << error << std::endl;
             outFile << "Epoch: " << epoch << std::endl;
@@ -314,5 +352,19 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
             outFile << std::endl;
         }
     }
+    double finalKValue = findKValue(threadPool, dataset.positions, dataset.allCoefficients, params,
+        ErrorType::EVAL_WDL, scoreKValue);
+    std::cout << "WDL k value for tuned params: " << finalKValue << std::endl;
+    std::cout << "Renormalizing eval scale\n" << std::endl;
+    outFile << "WDL k value for tuned params: " << finalKValue << std::endl;
+    outFile << "Renormalizing eval scale\n" << std::endl;
+    for (uint32_t i = 0; i < params.totalSize(); i++)
+    {
+        params[i].mg *= finalKValue / originalKValue;
+        params[i].eg *= finalKValue / originalKValue;
+    }
+    EvalFn::printEvalParams(params, std::cout);
+    std::cout << std::endl;
+
     return params;
 }
