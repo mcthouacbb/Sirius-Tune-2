@@ -31,8 +31,8 @@ struct Trace
     TraceElem pushThreat;
     TraceElem restrictedSquares;
 
-    TraceElem isolatedPawn[8];
-    TraceElem doubledPawn[8];
+    TraceElem isolatedPawn[4];
+    TraceElem doubledPawn[4];
     TraceElem backwardsPawn[8];
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
@@ -276,14 +276,14 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
 
         if (doubled && threats.empty())
         {
-            eval += DOUBLED_PAWN[sq.file()];
-            TRACE_INC(doubledPawn[sq.file()]);
+            eval += DOUBLED_PAWN[std::min(sq.file(), sq.file() ^ 7)];
+            TRACE_INC(doubledPawn[std::min(sq.file(), sq.file() ^ 7)]);
         }
 
         if (threats.empty() && isolated)
         {
-            eval += ISOLATED_PAWN[sq.file()];
-            TRACE_INC(isolatedPawn[sq.file()]);
+            eval += ISOLATED_PAWN[std::min(sq.file(), sq.file() ^ 7)];
+            TRACE_INC(isolatedPawn[std::min(sq.file(), sq.file() ^ 7)]);
         }
         else if (backwards)
         {
@@ -1082,12 +1082,12 @@ void printRestParams(PrintState& state)
 
     state.ss << '\n';
 
-    state.ss << "constexpr ScorePair ISOLATED_PAWN[8] = ";
-    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << "constexpr ScorePair ISOLATED_PAWN[4] = ";
+    printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
-    state.ss << "constexpr ScorePair DOUBLED_PAWN[8] = ";
-    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << "constexpr ScorePair DOUBLED_PAWN[4] = ";
+    printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair BACKWARDS_PAWN[8] = ";
