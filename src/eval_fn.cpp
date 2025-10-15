@@ -32,8 +32,10 @@ struct Trace
     TraceElem restrictedSquares;
 
     TraceElem isolatedPawn[4];
+    TraceElem isolatedExposed;
     TraceElem doubledPawn[4];
     TraceElem backwardsPawn[8];
+    TraceElem backwardsExposed;
     TraceElem pawnPhalanx[8];
     TraceElem defendedPawn[8];
     TraceElem candidatePasser[2][8];
@@ -260,6 +262,7 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
         Bitboard phalanx = attacks::pawnAttacks(them, push) & ourPawns;
         Bitboard stoppers = attacks::passedPawnMask(us, sq) & theirPawns;
 
+        bool exposed = (stoppers & Bitboard::fileBB(sq.file())).empty();
         bool blocked = theirPawns.has(push);
         bool doubled = ourPawns.has(push);
         bool isolated = neighbors.empty();
@@ -282,13 +285,15 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
 
         if (threats.empty() && isolated)
         {
-            eval += ISOLATED_PAWN[std::min(sq.file(), sq.file() ^ 7)];
+            eval += ISOLATED_PAWN[std::min(sq.file(), sq.file() ^ 7)] + exposed * ISOLATED_EXPOSED;
             TRACE_INC(isolatedPawn[std::min(sq.file(), sq.file() ^ 7)]);
+            TRACE_ADD(isolatedExposed, exposed);
         }
         else if (backwards)
         {
-            eval += BACKWARDS_PAWN[sq.relativeRank<us>()];
+            eval += BACKWARDS_PAWN[sq.relativeRank<us>()] + exposed * BACKWARDS_EXPOSED;
             TRACE_INC(backwardsPawn[sq.relativeRank<us>()]);
+            TRACE_ADD(backwardsExposed, exposed);
         }
     }
 
@@ -751,8 +756,10 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.restrictedSquares, ParamType::NORMAL);
 
     addCoefficientArray(trace.isolatedPawn, ParamType::NORMAL);
+    addCoefficient(trace.isolatedExposed, ParamType::NORMAL);
     addCoefficientArray(trace.doubledPawn, ParamType::NORMAL);
     addCoefficientArray(trace.backwardsPawn, ParamType::NORMAL);
+    addCoefficient(trace.backwardsExposed, ParamType::NORMAL);
     addCoefficientArray(trace.pawnPhalanx, ParamType::NORMAL);
     addCoefficientArray(trace.defendedPawn, ParamType::NORMAL);
     addCoefficientArray2D(trace.candidatePasser, ParamType::NORMAL);
@@ -849,8 +856,10 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, RESTRICTED_SQUARES, ParamType::NORMAL);
 
     addEvalParamArray(params, ISOLATED_PAWN, ParamType::NORMAL);
+    addEvalParam(params, ISOLATED_EXPOSED, ParamType::NORMAL);
     addEvalParamArray(params, DOUBLED_PAWN, ParamType::NORMAL);
     addEvalParamArray(params, BACKWARDS_PAWN, ParamType::NORMAL);
+    addEvalParam(params, BACKWARDS_EXPOSED, ParamType::NORMAL);
     addEvalParamArray(params, PAWN_PHALANX, ParamType::NORMAL);
     addEvalParamArray(params, DEFENDED_PAWN, ParamType::NORMAL);
     addEvalParamArray2D(params, CANDIDATE_PASSER, ParamType::NORMAL);
@@ -1086,12 +1095,20 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
+    state.ss << "constexpr ScorePair ISOLATED_EXPOSED = ";
+    printSingle<ALIGN_SIZE>(state);
+    state.ss << ";\n";
+
     state.ss << "constexpr ScorePair DOUBLED_PAWN[4] = ";
     printArray<ALIGN_SIZE>(state, 4);
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair BACKWARDS_PAWN[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr ScorePair BACKWARDS_EXPOSED = ";
+    printSingle<ALIGN_SIZE>(state);
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair PAWN_PHALANX[8] = ";
