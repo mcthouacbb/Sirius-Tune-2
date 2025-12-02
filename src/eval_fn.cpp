@@ -411,7 +411,8 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         TRACE_INC(threatByRook[defended][static_cast<int>(threatened)]);
     }
 
-    Bitboard queenThreats = evalData.attackedBy[us][QUEEN] & board.pieces(them);
+    // queen can xray through bishops and rooks to sometimes "attack" the king
+    Bitboard queenThreats = evalData.attackedBy[us][QUEEN] & board.pieces(them) & ~board.pieces(KING);
     while (queenThreats.any())
     {
         Square threat = queenThreats.poplsb();
