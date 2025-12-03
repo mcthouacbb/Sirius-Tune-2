@@ -61,6 +61,8 @@ struct Trace
     TraceElem weakKingRing;
     TraceElem kingFlankAttacks[2];
     TraceElem kingFlankDefenses[2];
+    TraceElem safetyPinned[6][6];
+    TraceElem safetyDiscovered[6][6];
     TraceElem safetyOffset;
 
     TraceElem minorBehindPawn;
@@ -585,6 +587,36 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
     TRACE_ADD(kingFlankDefenses[0], flankDefenses.popcount());
     TRACE_ADD(kingFlankDefenses[1], flankDefenses2.popcount());
 
+    Bitboard checkBlockers = board.checkBlockers(them);
+    while (checkBlockers.any())
+    {
+        Square blocker = checkBlockers.poplsb();
+        // this could technically pick the wrong pinner if there are 2 pinners
+        // that are both aligned, but it's so rare that I doubt it matters
+        Bitboard ray = attacks::alignedSquares(blocker, board.kingSq(them));
+        Piece piece = board.pieceAt(blocker);
+        Color color = getPieceColor(piece);
+        PieceType pieceType = getPieceType(piece);
+        // pinned
+        if (color == them)
+        {
+            Square pinner = (board.pinners(them) & ray).lsb();
+            PieceType pinnerPiece = getPieceType(board.pieceAt(pinner));
+
+            eval += SAFETY_PINNED[static_cast<int>(pieceType)][static_cast<int>(pinnerPiece)];
+            TRACE_INC(safetyPinned[static_cast<int>(pieceType)][static_cast<int>(pinnerPiece)]);
+        }
+        // discovered
+        else
+        {
+            Square discoverer = (board.discoverers(them) & ray).lsb();
+            PieceType discovererPiece = getPieceType(board.pieceAt(discoverer));
+
+            eval += SAFETY_DISCOVERED[static_cast<int>(pieceType)][static_cast<int>(discovererPiece)];
+            TRACE_INC(safetyDiscovered[static_cast<int>(pieceType)][static_cast<int>(discovererPiece)]);
+        }
+    }
+
     eval += SAFETY_OFFSET;
     TRACE_INC(safetyOffset);
 
@@ -786,6 +818,8 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficient(trace.weakKingRing, ParamType::SAFETY);
     addCoefficientArray(trace.kingFlankAttacks, ParamType::SAFETY);
     addCoefficientArray(trace.kingFlankDefenses, ParamType::SAFETY);
+    addCoefficientArray2D(trace.safetyPinned, ParamType::SAFETY);
+    addCoefficientArray2D(trace.safetyDiscovered, ParamType::SAFETY);
     addCoefficient(trace.safetyOffset, ParamType::SAFETY);
 
     addCoefficient(trace.minorBehindPawn, ParamType::NORMAL);
@@ -886,6 +920,8 @@ EvalParams EvalFn::getInitialParams()
     addEvalParam(params, WEAK_KING_RING, ParamType::SAFETY);
     addEvalParamArray(params, KING_FLANK_ATTACKS, ParamType::SAFETY);
     addEvalParamArray(params, KING_FLANK_DEFENSES, ParamType::SAFETY);
+    addEvalParamArray2D(params, SAFETY_PINNED, ParamType::SAFETY);
+    addEvalParamArray2D(params, SAFETY_DISCOVERED, ParamType::SAFETY);
     addEvalParam(params, SAFETY_OFFSET, ParamType::SAFETY);
 
     addEvalParam(params, MINOR_BEHIND_PAWN, ParamType::NORMAL);
@@ -1206,6 +1242,14 @@ void printRestParams(PrintState& state)
 
     state.ss << "constexpr ScorePair KING_FLANK_DEFENSES[2] = ";
     printArray<ALIGN_SIZE>(state, 2);
+    state.ss << ";\n";
+
+    state.ss << "constexpr ScorePair SAFETY_PINNED[6][6] = ";
+    printArray2D<ALIGN_SIZE>(state, 6, 6);
+    state.ss << ";\n";
+
+    state.ss << "constexpr ScorePair SAFETY_DISCOVERED[6][6] = ";
+    printArray2D<ALIGN_SIZE>(state, 6, 6);
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair SAFETY_OFFSET = ";
