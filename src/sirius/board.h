@@ -16,6 +16,7 @@ struct CheckInfo
 {
     Bitboard checkers;
     std::array<Bitboard, 2> pinners;
+    std::array<Bitboard, 2> discoverers;
     std::array<Bitboard, 2> blockers;
 };
 
@@ -202,10 +203,13 @@ public:
     Bitboard attackersTo(Square square, Bitboard blockers) const;
     bool castlingBlocked(Color color, CastleSide side) const;
 
-    Bitboard pinnersBlockers(Square square, Bitboard attackers, Bitboard& pinners) const;
+    Bitboard pinnersBlockers(
+        Square square, Bitboard attackers, Bitboard& pinners, Bitboard& discoverers) const;
 
     Bitboard checkers() const;
     Bitboard checkBlockers(Color color) const;
+    Bitboard pinners(Color color) const;
+    Bitboard discoverers(Color color) const;
     Bitboard threats() const;
 
     bool see(Move move, int margin) const;
@@ -222,7 +226,6 @@ private:
 
     const BoardState& currState() const;
     BoardState& currState();
-    Bitboard pinners(Color color) const;
 
     void updateCheckInfo();
     void calcThreats();
@@ -425,6 +428,11 @@ inline Bitboard Board::checkers() const
 inline Bitboard Board::pinners(Color color) const
 {
     return currState().checkInfo.pinners[static_cast<int>(color)];
+}
+
+inline Bitboard Board::discoverers(Color color) const
+{
+    return currState().checkInfo.discoverers[static_cast<int>(color)];
 }
 
 inline Bitboard Board::checkBlockers(Color color) const
