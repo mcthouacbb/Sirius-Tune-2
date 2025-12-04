@@ -547,6 +547,9 @@ Bitboard Board::pinnersBlockers(
     attackers &= (attacks::rookAttacks(square, EMPTY_BB) & (pieces(PieceType::ROOK) | queens))
         | (attacks::bishopAttacks(square, EMPTY_BB) & (pieces(PieceType::BISHOP) | queens));
 
+    pinners = EMPTY_BB;
+    discoverers = EMPTY_BB;
+
     Bitboard blockers = EMPTY_BB;
 
     Bitboard blockMask = allPieces() ^ attackers;

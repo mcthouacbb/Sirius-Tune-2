@@ -61,8 +61,8 @@ struct Trace
     TraceElem weakKingRing;
     TraceElem kingFlankAttacks[2];
     TraceElem kingFlankDefenses[2];
-    TraceElem safetyPinned[6][6];
-    TraceElem safetyDiscovered[6][6];
+    TraceElem safetyPinned[5][3];
+    TraceElem safetyDiscovered[6][3];
     TraceElem safetyOffset;
 
     TraceElem minorBehindPawn;
@@ -603,8 +603,10 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
             Square pinner = (board.pinners(them) & ray).lsb();
             PieceType pinnerPiece = getPieceType(board.pieceAt(pinner));
 
-            eval += SAFETY_PINNED[static_cast<int>(pieceType)][static_cast<int>(pinnerPiece)];
-            TRACE_INC(safetyPinned[static_cast<int>(pieceType)][static_cast<int>(pinnerPiece)]);
+            eval += SAFETY_PINNED[static_cast<int>(pieceType)]
+                                 [static_cast<int>(pinnerPiece) - static_cast<int>(BISHOP)];
+            TRACE_INC(safetyPinned[static_cast<int>(pieceType)]
+                                  [static_cast<int>(pinnerPiece) - static_cast<int>(BISHOP)]);
         }
         // discovered
         else
@@ -612,8 +614,10 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
             Square discoverer = (board.discoverers(them) & ray).lsb();
             PieceType discovererPiece = getPieceType(board.pieceAt(discoverer));
 
-            eval += SAFETY_DISCOVERED[static_cast<int>(pieceType)][static_cast<int>(discovererPiece)];
-            TRACE_INC(safetyDiscovered[static_cast<int>(pieceType)][static_cast<int>(discovererPiece)]);
+            eval += SAFETY_DISCOVERED[static_cast<int>(pieceType)]
+                                     [static_cast<int>(discovererPiece) - static_cast<int>(BISHOP)];
+            TRACE_INC(safetyDiscovered[static_cast<int>(pieceType)]
+                                      [static_cast<int>(discovererPiece) - static_cast<int>(BISHOP)]);
         }
     }
 
@@ -1244,12 +1248,12 @@ void printRestParams(PrintState& state)
     printArray<ALIGN_SIZE>(state, 2);
     state.ss << ";\n";
 
-    state.ss << "constexpr ScorePair SAFETY_PINNED[6][6] = ";
-    printArray2D<ALIGN_SIZE>(state, 6, 6);
+    state.ss << "constexpr ScorePair SAFETY_PINNED[5][3] = ";
+    printArray2D<ALIGN_SIZE>(state, 5, 3);
     state.ss << ";\n";
 
-    state.ss << "constexpr ScorePair SAFETY_DISCOVERED[6][6] = ";
-    printArray2D<ALIGN_SIZE>(state, 6, 6);
+    state.ss << "constexpr ScorePair SAFETY_DISCOVERED[6][3] = ";
+    printArray2D<ALIGN_SIZE>(state, 6, 3);
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair SAFETY_OFFSET = ";
