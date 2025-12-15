@@ -44,6 +44,7 @@ struct Trace
     TraceElem ourPasserProximity[8];
     TraceElem theirPasserProximity[8];
     TraceElem passerDefendedPush[8];
+    TraceElem passerSliderBehind[8];
 
     TraceElem pawnStorm[2][4][8];
     TraceElem pawnShield[4][8];
@@ -352,6 +353,16 @@ ScorePair evaluatePassedPawns(
             {
                 eval += PASSER_DEFENDED_PUSH[rank];
                 TRACE_INC(passerDefendedPush[rank]);
+            }
+
+            Bitboard squaresBehind =
+                attacks::passedPawnMask(them, passer) & Bitboard::fileBB(passer.file());
+            Bitboard verticalSliders =
+                board.pieces(them, PieceType::ROOK) | board.pieces(them, PieceType::QUEEN);
+            if ((squaresBehind & verticalSliders).any())
+            {
+                eval += PASSER_SLIDER_BEHIND[rank];
+                TRACE_INC(passerSliderBehind[rank]);
             }
         }
     }
@@ -805,6 +816,7 @@ std::tuple<size_t, size_t, double> EvalFn::getCoefficients(const Board& board)
     addCoefficientArray(trace.ourPasserProximity, ParamType::NORMAL);
     addCoefficientArray(trace.theirPasserProximity, ParamType::NORMAL);
     addCoefficientArray(trace.passerDefendedPush, ParamType::NORMAL);
+    addCoefficientArray(trace.passerSliderBehind, ParamType::NORMAL);
 
     addCoefficientArray3D(trace.pawnStorm, ParamType::SAFETY);
     addCoefficientArray2D(trace.pawnShield, ParamType::SAFETY);
@@ -907,6 +919,7 @@ EvalParams EvalFn::getInitialParams()
     addEvalParamArray(params, OUR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, THEIR_PASSER_PROXIMITY, ParamType::NORMAL);
     addEvalParamArray(params, PASSER_DEFENDED_PUSH, ParamType::NORMAL);
+    addEvalParamArray(params, PASSER_SLIDER_BEHIND, ParamType::NORMAL);
 
     addEvalParamArray3D(params, PAWN_STORM, ParamType::SAFETY);
     addEvalParamArray2D(params, PAWN_SHIELD, ParamType::SAFETY);
@@ -1179,6 +1192,10 @@ void printRestParams(PrintState& state)
     state.ss << ";\n";
 
     state.ss << "constexpr ScorePair PASSER_DEFENDED_PUSH[8] = ";
+    printArray<ALIGN_SIZE>(state, 8);
+    state.ss << ";\n";
+
+    state.ss << "constexpr ScorePair PASSER_SLIDER_BEHIND[8] = ";
     printArray<ALIGN_SIZE>(state, 8);
     state.ss << ";\n";
 
