@@ -29,12 +29,11 @@ struct AttackData
     {
         Bitboard* attackData;
         Bitboard mask;
-        uint64_t magic;
-        uint32_t shift;
+        u64 magic;
+        u32 shift;
     };
 
     MultiArray<Bitboard, 64, 64> inBetweenSquares;
-    MultiArray<Bitboard, 64, 64> moveMasks;
     MultiArray<Bitboard, 64, 64> alignedSquares;
 
     MultiArray<Bitboard, 2, 64> passedPawnMasks;
@@ -115,7 +114,7 @@ constexpr Bitboard fillUp(Bitboard bb, Color c)
 }
 
 template<Color c>
-constexpr int pawnPushOffset()
+constexpr i32 pawnPushOffset()
 {
     return c == Color::WHITE ? 8 : -8;
 }
@@ -137,12 +136,12 @@ inline Bitboard inBetweenSquares(Square src, Square dst)
 
 inline Bitboard moveMask(Square king, Square checker)
 {
-    return attackData.moveMasks[king.value()][checker.value()];
+    return inBetweenSquares(king, checker) | Bitboard::fromSquare(checker);
 }
 
 inline Bitboard passedPawnMask(Color color, Square square)
 {
-    return attackData.passedPawnMasks[static_cast<int>(color)][square.value()];
+    return attackData.passedPawnMasks[static_cast<i32>(color)][square.value()];
 }
 
 inline Bitboard isolatedPawnMask(Square square)
@@ -150,14 +149,14 @@ inline Bitboard isolatedPawnMask(Square square)
     return attackData.isolatedPawnMasks[square.value()];
 }
 
-inline Bitboard kingFlank(Color color, int file)
+inline Bitboard kingFlank(Color color, i32 file)
 {
-    return attackData.kingFlanks[static_cast<int>(color)][file];
+    return attackData.kingFlanks[static_cast<i32>(color)][file];
 }
 
 inline Bitboard pawnAttacks(Color color, Square square)
 {
-    return attackData.pawnAttacks[static_cast<int>(color)][square.value()];
+    return attackData.pawnAttacks[static_cast<i32>(color)][square.value()];
 }
 
 inline Bitboard kingAttacks(Square square)
@@ -173,7 +172,7 @@ inline Bitboard knightAttacks(Square square)
 inline Bitboard bishopAttacks(Square square, Bitboard blockers)
 {
     blockers &= attackData.bishopTable[square.value()].mask;
-    uint64_t index = blockers.value() * attackData.bishopTable[square.value()].magic;
+    u64 index = blockers.value() * attackData.bishopTable[square.value()].magic;
     return attackData.bishopTable[square.value()]
         .attackData[index >> attackData.bishopTable[square.value()].shift];
 }
@@ -181,7 +180,7 @@ inline Bitboard bishopAttacks(Square square, Bitboard blockers)
 inline Bitboard rookAttacks(Square square, Bitboard blockers)
 {
     blockers &= attackData.rookTable[square.value()].mask;
-    uint64_t index = blockers.value() * attackData.rookTable[square.value()].magic;
+    u64 index = blockers.value() * attackData.rookTable[square.value()].magic;
     return attackData.rookTable[square.value()]
         .attackData[index >> attackData.rookTable[square.value()].shift];
 }

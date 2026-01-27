@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
-using TraceElem = ColorArray<int>;
+using TraceElem = ColorArray<i32>;
 
 #define TRACE_OFFSET(elem) (offsetof(Trace, elem) / sizeof(TraceElem))
 #define TRACE_SIZE(elem) (sizeof(Trace::elem) / sizeof(TraceElem))
@@ -91,7 +91,7 @@ struct EvalData
     ColorArray<PieceTypeArray<Bitboard>> attackedBy;
     ColorArray<Bitboard> kingRing;
     ColorArray<ScorePair> attackWeight;
-    ColorArray<int> attackCount;
+    ColorArray<i32> attackCount;
     ColorArray<Bitboard> kingFlank;
 };
 
@@ -219,16 +219,16 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         evalData.attackedBy2[us] |= evalData.attacked[us] & attacks;
         evalData.attacked[us] |= attacks;
 
-        eval += MOBILITY[static_cast<int>(piece) - static_cast<int>(KNIGHT)]
+        eval += MOBILITY[static_cast<i32>(piece) - static_cast<i32>(KNIGHT)]
                         [(attacks & evalData.mobilityArea[us]).popcount()];
-        TRACE_INC(mobility[static_cast<int>(piece) - static_cast<int>(KNIGHT)]
+        TRACE_INC(mobility[static_cast<i32>(piece) - static_cast<i32>(KNIGHT)]
                           [(attacks & evalData.mobilityArea[us]).popcount()]);
 
         if (Bitboard kingRingAtks = evalData.kingRing[them] & attacks; kingRingAtks.any())
         {
             evalData.attackWeight[us] +=
-                KING_ATTACKER_WEIGHT[static_cast<int>(piece) - static_cast<int>(KNIGHT)];
-            TRACE_INC(kingAttackerWeight[static_cast<int>(piece) - static_cast<int>(KNIGHT)]);
+                KING_ATTACKER_WEIGHT[static_cast<i32>(piece) - static_cast<i32>(KNIGHT)];
+            TRACE_INC(kingAttackerWeight[static_cast<i32>(piece) - static_cast<i32>(KNIGHT)]);
             evalData.attackCount[us] += kingRingAtks.popcount();
         }
 
@@ -334,7 +334,7 @@ ScorePair evaluatePassedPawns(
     while (passers.any())
     {
         Square passer = passers.poplsb();
-        int rank = passer.relativeRank<us>();
+        i32 rank = passer.relativeRank<us>();
         if (rank >= RANK_4)
         {
             Square pushSq = passer + attacks::pawnPushOffset<us>();
@@ -390,8 +390,8 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
     while (pawnThreats.any())
     {
         PieceType threatened = getPieceType(board.pieceAt(pawnThreats.poplsb()));
-        eval += THREAT_BY_PAWN[static_cast<int>(threatened)];
-        TRACE_INC(threatByPawn[static_cast<int>(threatened)]);
+        eval += THREAT_BY_PAWN[static_cast<i32>(threatened)];
+        TRACE_INC(threatByPawn[static_cast<i32>(threatened)]);
     }
 
     Bitboard knightThreats = evalData.attackedBy[us][KNIGHT] & board.pieces(them);
@@ -400,8 +400,8 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         Square threat = knightThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = defendedBB.has(threat);
-        eval += THREAT_BY_KNIGHT[defended][static_cast<int>(threatened)];
-        TRACE_INC(threatByKnight[defended][static_cast<int>(threatened)]);
+        eval += THREAT_BY_KNIGHT[defended][static_cast<i32>(threatened)];
+        TRACE_INC(threatByKnight[defended][static_cast<i32>(threatened)]);
     }
 
     Bitboard bishopThreats = evalData.attackedBy[us][BISHOP] & board.pieces(them);
@@ -410,8 +410,8 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         Square threat = bishopThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = defendedBB.has(threat);
-        eval += THREAT_BY_BISHOP[defended][static_cast<int>(threatened)];
-        TRACE_INC(threatByBishop[defended][static_cast<int>(threatened)]);
+        eval += THREAT_BY_BISHOP[defended][static_cast<i32>(threatened)];
+        TRACE_INC(threatByBishop[defended][static_cast<i32>(threatened)]);
     }
 
     Bitboard rookThreats = evalData.attackedBy[us][ROOK] & board.pieces(them);
@@ -420,8 +420,8 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         Square threat = rookThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = defendedBB.has(threat);
-        eval += THREAT_BY_ROOK[defended][static_cast<int>(threatened)];
-        TRACE_INC(threatByRook[defended][static_cast<int>(threatened)]);
+        eval += THREAT_BY_ROOK[defended][static_cast<i32>(threatened)];
+        TRACE_INC(threatByRook[defended][static_cast<i32>(threatened)]);
     }
 
     // queen can xray through bishops and rooks to sometimes "attack" the king
@@ -431,16 +431,16 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
         Square threat = queenThreats.poplsb();
         PieceType threatened = getPieceType(board.pieceAt(threat));
         bool defended = defendedBB.has(threat);
-        eval += THREAT_BY_QUEEN[defended][static_cast<int>(threatened)];
-        TRACE_INC(threatByQueen[defended][static_cast<int>(threatened)]);
+        eval += THREAT_BY_QUEEN[defended][static_cast<i32>(threatened)];
+        TRACE_INC(threatByQueen[defended][static_cast<i32>(threatened)]);
     }
 
     Bitboard kingThreats = evalData.attackedBy[us][KING] & board.pieces(them) & ~defendedBB;
     while (kingThreats.any())
     {
         PieceType threatened = getPieceType(board.pieceAt(kingThreats.poplsb()));
-        eval += THREAT_BY_KING[static_cast<int>(threatened)];
-        TRACE_INC(threatByKing[static_cast<int>(threatened)]);
+        eval += THREAT_BY_KING[static_cast<i32>(threatened)];
+        TRACE_INC(threatByKing[static_cast<i32>(threatened)]);
     }
 
     Bitboard nonPawnEnemies = board.pieces(them) & ~board.pieces(PAWN);
@@ -484,15 +484,15 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
 }
 
 template<Color us>
-ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns, Trace& trace)
+ScorePair evalKingPawnFile(u32 file, Bitboard ourPawns, Bitboard theirPawns, Trace& trace)
 {
     constexpr Color them = ~us;
 
     ScorePair eval{0, 0};
-    int edgeDist = std::min(file, 7 - file);
+    i32 edgeDist = std::min(file, 7 - file);
     {
         Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
-        int rank = 0;
+        i32 rank = 0;
         bool blocked = false;
         if (filePawns.any())
         {
@@ -505,7 +505,7 @@ ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns
     }
     {
         Bitboard filePawns = theirPawns & Bitboard::fileBB(file);
-        int rank = filePawns.any()
+        i32 rank = filePawns.any()
             ? (us == WHITE ? filePawns.msb() : filePawns.lsb()).relativeRank<them>()
             : 0;
         eval += PAWN_SHIELD[edgeDist][rank];
@@ -515,7 +515,7 @@ ScorePair evalKingPawnFile(uint32_t file, Bitboard ourPawns, Bitboard theirPawns
     return eval;
 }
 
-constexpr int safetyAdjustment(int value)
+constexpr i32 safetyAdjustment(i32 value)
 {
     return (value + std::max(value, 0) * value / 128) / 8;
 }
@@ -531,9 +531,9 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
 
     ScorePair eval{0, 0};
 
-    uint32_t leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
-    uint32_t rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
-    for (uint32_t file = leftFile; file <= rightFile; file++)
+    u32 leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
+    u32 rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
+    for (u32 file = leftFile; file <= rightFile; file++)
         eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
 
     Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
@@ -574,12 +574,12 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
 
     eval += evalData.attackWeight[us];
 
-    int attackCount = evalData.attackCount[us];
+    i32 attackCount = evalData.attackCount[us];
     eval += KING_ATTACKS * attackCount;
     TRACE_ADD(kingAttacks, attackCount);
 
     Bitboard weakKingRing = (evalData.kingRing[them] & weak);
-    int weakSquares = weakKingRing.popcount();
+    i32 weakSquares = weakKingRing.popcount();
     eval += WEAK_KING_RING * weakSquares;
     TRACE_ADD(weakKingRing, weakSquares);
 
@@ -614,10 +614,10 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
             Square pinner = (board.pinners(them) & ray).lsb();
             PieceType pinnerPiece = getPieceType(board.pieceAt(pinner));
 
-            eval += SAFETY_PINNED[static_cast<int>(pieceType)]
-                                 [static_cast<int>(pinnerPiece) - static_cast<int>(BISHOP)];
-            TRACE_INC(safetyPinned[static_cast<int>(pieceType)]
-                                  [static_cast<int>(pinnerPiece) - static_cast<int>(BISHOP)]);
+            eval += SAFETY_PINNED[static_cast<i32>(pieceType)]
+                                 [static_cast<i32>(pinnerPiece) - static_cast<i32>(BISHOP)];
+            TRACE_INC(safetyPinned[static_cast<i32>(pieceType)]
+                                  [static_cast<i32>(pinnerPiece) - static_cast<i32>(BISHOP)]);
         }
         // discovered
         else
@@ -625,10 +625,10 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
             Square discoverer = (board.discoverers(them) & ray).lsb();
             PieceType discovererPiece = getPieceType(board.pieceAt(discoverer));
 
-            eval += SAFETY_DISCOVERED[static_cast<int>(pieceType)]
-                                     [static_cast<int>(discovererPiece) - static_cast<int>(BISHOP)];
-            TRACE_INC(safetyDiscovered[static_cast<int>(pieceType)]
-                                      [static_cast<int>(discovererPiece) - static_cast<int>(BISHOP)]);
+            eval += SAFETY_DISCOVERED[static_cast<i32>(pieceType)]
+                                     [static_cast<i32>(discovererPiece) - static_cast<i32>(BISHOP)];
+            TRACE_INC(safetyDiscovered[static_cast<i32>(pieceType)]
+                                      [static_cast<i32>(discovererPiece) - static_cast<i32>(BISHOP)]);
         }
     }
 
@@ -657,9 +657,9 @@ ScorePair evaluateComplexity(
         + COMPLEXITY_PAWNS_BOTH_SIDES * pawnsBothSides + COMPLEXITY_PAWN_ENDGAME * pawnEndgame
         + COMPLEXITY_OFFSET;
 
-    int egSign = (eval.eg() > 0) - (eval.eg() < 0);
+    i32 egSign = (eval.eg() > 0) - (eval.eg() < 0);
 
-    int egComplexity = std::max(complexity.eg(), -std::abs(eval.eg()));
+    i32 egComplexity = std::max(complexity.eg(), -std::abs(eval.eg()));
 
     return ScorePair(0, egSign * egComplexity);
 }
@@ -703,14 +703,14 @@ ScorePair evaluatePsqt(const Board& board, Trace& trace)
             {
                 Square sq = pieces.poplsb();
                 // hack for now
-                int x = 0;
+                i32 x = 0;
                 if (c == WHITE)
                     x ^= 56;
                 if (mirror)
                     x ^= 7;
-                trace.psqt[static_cast<int>(pt)][sq.value() ^ x][c]++;
+                trace.psqt[static_cast<i32>(pt)][sq.value() ^ x][c]++;
                 ScorePair d =
-                    MATERIAL[static_cast<int>(pt)] + PSQT[static_cast<int>(pt)][sq.value() ^ x];
+                    MATERIAL[static_cast<i32>(pt)] + PSQT[static_cast<i32>(pt)][sq.value() ^ x];
                 if (c == WHITE)
                     eval += d;
                 else
@@ -726,7 +726,7 @@ double evaluateScale(const Board& board, ScorePair eval)
 {
     Color strongSide = eval.eg() > 0 ? WHITE : eval.eg() < 0 ? BLACK : board.sideToMove();
 
-    int strongPawns = board.pieces(strongSide, PAWN).popcount();
+    i32 strongPawns = board.pieces(strongSide, PAWN).popcount();
 
     return 80 + strongPawns * 7;
 }
@@ -886,8 +886,8 @@ EvalParams EvalFn::getInitialParams()
 {
     EvalParams params;
     addEvalParamArray2D(params, PSQT, ParamType::NORMAL);
-    for (int i = 0; i < 6; i++)
-        for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
+    for (i32 i = 0; i < 6; i++)
+        for (i32 j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
         {
             params[i * 64 + j].mg += MATERIAL[i].mg();
             params[i * 64 + j].eg += MATERIAL[i].eg();
@@ -963,8 +963,8 @@ EvalParams EvalFn::getMaterialParams()
     for (auto& param : params.linear)
         param.mg = param.eg = 0;
 
-    for (int i = 0; i < 6; i++)
-        for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
+    for (i32 i = 0; i < 6; i++)
+        for (i32 j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
         {
             params[i * 64 + j].mg += MATERIAL[i].mg();
             params[i * 64 + j].eg += MATERIAL[i].eg();
@@ -981,8 +981,8 @@ EvalParams EvalFn::getKParams()
     for (auto& param : params.linear)
         param.mg = param.eg = 0;
 
-    for (int i = 0; i < 6; i++)
-        for (int j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
+    for (i32 i = 0; i < 6; i++)
+        for (i32 j = (i == 0 ? 8 : 0); j < (i == 0 ? 56 : 64); j++)
         {
             params[i * 64 + j].mg += K_MATERIAL[i].mg();
             params[i * 64 + j].eg += K_MATERIAL[i].eg();
@@ -993,32 +993,32 @@ EvalParams EvalFn::getKParams()
 struct PrintState
 {
     const EvalParams& params;
-    uint32_t index;
+    u32 index;
     std::ostringstream ss;
 };
 
-template<int ALIGN_SIZE>
+template<i32 ALIGN_SIZE>
 void printSingle(PrintState& state)
 {
     const EvalParam& param = state.params[state.index++];
     if constexpr (ALIGN_SIZE == 0)
         state.ss << "S(" << param.mg << ", " << param.eg << ')';
     else
-        state.ss << "S(" << std::setw(ALIGN_SIZE) << static_cast<int>(param.mg) << ", "
-                 << std::setw(ALIGN_SIZE) << static_cast<int>(param.eg) << ')';
+        state.ss << "S(" << std::setw(ALIGN_SIZE) << static_cast<i32>(param.mg) << ", "
+                 << std::setw(ALIGN_SIZE) << static_cast<i32>(param.eg) << ')';
 }
 
-template<int ALIGN_SIZE>
+template<i32 ALIGN_SIZE>
 void printPSQTs(PrintState& state)
 {
     state.ss << "constexpr ScorePair PSQT[6][64] = {\n";
-    for (int pce = 0; pce < 6; pce++)
+    for (i32 pce = 0; pce < 6; pce++)
     {
         state.ss << "    {\n";
-        for (int y = 0; y < 8; y++)
+        for (i32 y = 0; y < 8; y++)
         {
             state.ss << "        ";
-            for (int x = 0; x < 8; x++)
+            for (i32 x = 0; x < 8; x++)
             {
                 printSingle<ALIGN_SIZE>(state);
                 state.ss << ",";
@@ -1035,7 +1035,7 @@ void printPSQTs(PrintState& state)
 void printMaterial(PrintState& state)
 {
     state.ss << "constexpr ScorePair MATERIAL[6] = {";
-    for (int j = 0; j < 5; j++)
+    for (i32 j = 0; j < 5; j++)
     {
         printSingle<4>(state);
         state.ss << ", ";
@@ -1043,11 +1043,11 @@ void printMaterial(PrintState& state)
     state.ss << "S(0, 0)};\n";
 }
 
-template<int ALIGN_SIZE>
-void printArray(PrintState& state, int len)
+template<i32 ALIGN_SIZE>
+void printArray(PrintState& state, i32 len)
 {
     state.ss << '{';
-    for (int i = 0; i < len; i++)
+    for (i32 i = 0; i < len; i++)
     {
         printSingle<ALIGN_SIZE>(state);
         if (i != len - 1)
@@ -1056,11 +1056,11 @@ void printArray(PrintState& state, int len)
     state.ss << '}';
 }
 
-template<int ALIGN_SIZE>
-void printArray2D(PrintState& state, int outerLen, int innerLen, bool indent = false)
+template<i32 ALIGN_SIZE>
+void printArray2D(PrintState& state, i32 outerLen, i32 innerLen, bool indent = false)
 {
     state.ss << "{\n";
-    for (int i = 0; i < outerLen; i++)
+    for (i32 i = 0; i < outerLen; i++)
     {
         state.ss << "    ";
         if (indent)
@@ -1075,11 +1075,11 @@ void printArray2D(PrintState& state, int outerLen, int innerLen, bool indent = f
     state.ss << "}";
 }
 
-template<int ALIGN_SIZE>
-void printArray3D(PrintState& state, int len1, int len2, int len3)
+template<i32 ALIGN_SIZE>
+void printArray3D(PrintState& state, i32 len1, i32 len2, i32 len3)
 {
     state.ss << "{\n";
-    for (int i = 0; i < len1; i++)
+    for (i32 i = 0; i < len1; i++)
     {
         state.ss << "    ";
         printArray2D<ALIGN_SIZE>(state, len2, len3, true);
@@ -1090,7 +1090,7 @@ void printArray3D(PrintState& state, int len1, int len2, int len3)
     state.ss << "}";
 }
 
-template<int ALIGN_SIZE>
+template<i32 ALIGN_SIZE>
 void printRestParams(PrintState& state)
 {
     state.ss << "constexpr ScorePair MOBILITY[4][28] = ";
@@ -1337,26 +1337,26 @@ void EvalFn::printEvalParams(const EvalParams& params, std::ostream& os)
     os << state.ss.str() << std::endl;
 }
 
-std::array<int, 2> avgValue(EvalParams& params, int offset, int size)
+std::array<i32, 2> avgValue(EvalParams& params, i32 offset, i32 size)
 {
-    std::array<int, 2> avg = {};
-    for (int i = offset; i < offset + size; i++)
+    std::array<i32, 2> avg = {};
+    for (i32 i = offset; i < offset + size; i++)
     {
-        avg[0] += static_cast<int>(params[i].mg);
-        avg[1] += static_cast<int>(params[i].eg);
+        avg[0] += static_cast<i32>(params[i].mg);
+        avg[1] += static_cast<i32>(params[i].eg);
     }
     avg[0] /= size;
     avg[1] /= size;
     return avg;
 }
 
-void rebalance(std::array<int, 2> factor, std::array<int, 2>& materialValue, EvalParams& params,
-    int offset, int size)
+void rebalance(std::array<i32, 2> factor, std::array<i32, 2>& materialValue, EvalParams& params,
+    i32 offset, i32 size)
 {
     materialValue[0] += factor[0];
     materialValue[1] += factor[1];
 
-    for (int i = offset; i < offset + size; i++)
+    for (i32 i = offset; i < offset + size; i++)
     {
         params[i].mg -= static_cast<double>(factor[0]);
         params[i].eg -= static_cast<double>(factor[1]);
@@ -1372,10 +1372,10 @@ EvalParams extractMaterial(const EvalParams& params)
         elem.eg = std::round(elem.eg);
     }
 
-    std::array<std::array<int, 2>, 6> material = {};
+    std::array<std::array<i32, 2>, 6> material = {};
 
     // psqts
-    for (int pce = 0; pce < 6; pce++)
+    for (i32 pce = 0; pce < 6; pce++)
     {
         if (pce == 0)
         {
@@ -1391,10 +1391,10 @@ EvalParams extractMaterial(const EvalParams& params)
 
         if (pce == 5)
         {
-            int offset = TRACE_OFFSET(psqt[pce]);
-            for (int rank = 0; rank < 8; rank++)
+            i32 offset = TRACE_OFFSET(psqt[pce]);
+            for (i32 rank = 0; rank < 8; rank++)
             {
-                for (int file = 4; file < 8; file++)
+                for (i32 file = 4; file < 8; file++)
                 {
                     rebalanced[offset + rank * 8 + file].mg = 0;
                     rebalanced[offset + rank * 8 + file].eg = 0;
@@ -1418,7 +1418,7 @@ EvalParams extractMaterial(const EvalParams& params)
         rebalanced, TRACE_OFFSET(bishopPawns), TRACE_SIZE(bishopPawns));
 
     EvalParams extracted;
-    for (int i = 0; i < 5; i++)
+    for (i32 i = 0; i < 5; i++)
     {
         extracted.linear.push_back(EvalParam{ParamType::NORMAL, static_cast<double>(material[i][0]),
             static_cast<double>(material[i][1])});

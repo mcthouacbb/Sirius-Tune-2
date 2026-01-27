@@ -1,14 +1,15 @@
 #include "thread_pool.h"
 
-ThreadPool::ThreadPool(uint32_t concurrency)
+ThreadPool::ThreadPool(u32 concurrency)
     : m_ShouldStop(false), m_RunningTasks(0)
 {
-    for (uint32_t i = 0; i < concurrency; i++)
+    for (u32 i = 0; i < concurrency; i++)
     {
-        m_Threads.push_back(std::thread([this]
-        {
-            threadLoop();
-        }));
+        m_Threads.push_back(std::thread(
+            [this]
+            {
+                threadLoop();
+            }));
     }
 }
 
@@ -20,10 +21,11 @@ ThreadPool::~ThreadPool()
 void ThreadPool::wait()
 {
     std::unique_lock<std::mutex> uniqueLock(m_QueueLock);
-    m_CV.wait(uniqueLock, [this]()
-    {
-        return m_Tasks.size() == 0 && m_RunningTasks == 0;
-    });
+    m_CV.wait(uniqueLock,
+        [this]()
+        {
+            return m_Tasks.size() == 0 && m_RunningTasks == 0;
+        });
 }
 
 void ThreadPool::addTask(const std::function<void()>& task)
@@ -47,10 +49,11 @@ void ThreadPool::threadLoop()
     {
         std::unique_lock<std::mutex> uniqueLock(m_QueueLock);
         m_CV.notify_all();
-        m_CV.wait(uniqueLock, [this]()
-        {
-            return m_ShouldStop || m_Tasks.size() > 0;
-        });
+        m_CV.wait(uniqueLock,
+            [this]()
+            {
+                return m_ShouldStop || m_Tasks.size() > 0;
+            });
 
         if (m_ShouldStop)
             return;
