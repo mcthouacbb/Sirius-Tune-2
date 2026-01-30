@@ -521,6 +521,23 @@ ScorePair evalKingPawnFile(u32 file, Bitboard ourPawns, Bitboard theirPawns, Tra
     return eval;
 }
 
+template<Color us>
+ScorePair evaluateStormShield(const Board& board, Trace& trace)
+{
+    constexpr Color them = ~us;
+
+    ScorePair eval = ScorePair(0, 0);
+    Bitboard ourPawns = board.pieces(us, PieceType::PAWN);
+    Bitboard theirPawns = board.pieces(them, PieceType::PAWN);
+    Square theirKing = board.kingSq(them);
+
+    u32 middleFile = std::clamp(theirKing.file(), FILE_B, FILE_G);
+    for (u32 file = middleFile - 1; file <= middleFile + 1; file++)
+        eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
+
+    return eval;
+}
+
 constexpr i32 safetyAdjustment(i32 value)
 {
     return (value + std::max(value, 0) * value / 128) / 8;
@@ -530,17 +547,9 @@ template<Color us>
 ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& trace)
 {
     constexpr Color them = ~us;
-    Bitboard ourPawns = board.pieces(us, PAWN);
-    Bitboard theirPawns = board.pieces(them, PAWN);
-
     Square theirKing = board.kingSq(them);
 
-    ScorePair eval = ScorePair(0, 0);
-
-    u32 leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
-    u32 rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
-    for (u32 file = leftFile; file <= rightFile; file++)
-        eval += evalKingPawnFile<us>(file, ourPawns, theirPawns, trace);
+    ScorePair eval = evaluateStormShield<us>(board, trace);
 
     Bitboard rookCheckSquares = attacks::rookAttacks(theirKing, board.allPieces());
     Bitboard bishopCheckSquares = attacks::bishopAttacks(theirKing, board.allPieces());
