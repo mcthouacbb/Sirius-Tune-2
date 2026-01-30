@@ -135,7 +135,7 @@ ScorePair evaluateBishopPawns(const Board& board, Trace& trace)
 {
     Bitboard bishops = board.pieces(us, BISHOP);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
     while (bishops.any())
     {
         Square sq = bishops.poplsb();
@@ -156,7 +156,7 @@ ScorePair evaluateRookOpen(const Board& board, Trace& trace)
     Bitboard theirPawns = board.pieces(them, PAWN);
     Bitboard rooks = board.pieces(us, ROOK);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
     while (rooks.any())
     {
         Bitboard fileBB = Bitboard::fileBB(rooks.poplsb().file());
@@ -191,7 +191,7 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
     constexpr Color them = ~us;
     constexpr Bitboard CENTER_SQUARES = (RANK_4_BB | RANK_5_BB) & (FILE_D_BB | FILE_E_BB);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
     Bitboard pieces = board.pieces(us, piece);
     if constexpr (piece == BISHOP)
         if (pieces.multiple())
@@ -249,7 +249,7 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
     Bitboard ourPawns = board.pieces(us, PAWN);
     Bitboard theirPawns = board.pieces(them, PAWN);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
 
     Bitboard pawns = ourPawns;
     while (pawns.any())
@@ -329,7 +329,7 @@ ScorePair evaluatePassedPawns(
 
     Bitboard passers = pawnStructure.passedPawns & board.pieces(us);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
 
     while (passers.any())
     {
@@ -381,7 +381,7 @@ ScorePair evaluateThreats(const Board& board, const EvalData& evalData, Trace& t
 {
     constexpr Color them = ~us;
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
 
     Bitboard defendedBB = evalData.attackedBy2[them] | evalData.attackedBy[them][PAWN]
         | (evalData.attacked[them] & ~evalData.attackedBy2[us]);
@@ -488,7 +488,7 @@ ScorePair evalKingPawnFile(u32 file, Bitboard ourPawns, Bitboard theirPawns, Tra
 {
     constexpr Color them = ~us;
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
     i32 edgeDist = std::min(file, 7 - file);
     {
         Bitboard filePawns = ourPawns & Bitboard::fileBB(file);
@@ -529,7 +529,7 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
 
     Square theirKing = board.kingSq(them);
 
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
 
     u32 leftFile = std::clamp(theirKing.file() - 1, FILE_A, FILE_F);
     u32 rightFile = std::clamp(theirKing.file() + 1, FILE_C, FILE_H);
@@ -635,7 +635,7 @@ ScorePair evaluateKings(const Board& board, const EvalData& evalData, Trace& tra
     eval += SAFETY_OFFSET;
     TRACE_INC(safetyOffset);
 
-    ScorePair safety{safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg())};
+    ScorePair safety = ScorePair(safetyAdjustment(eval.mg()), safetyAdjustment(eval.eg()));
     return safety;
 }
 
@@ -692,7 +692,7 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
 
 ScorePair evaluatePsqt(const Board& board, Trace& trace)
 {
-    ScorePair eval{0, 0};
+    ScorePair eval = ScorePair(0, 0);
     for (Color c : {WHITE, BLACK})
     {
         bool mirror = board.kingSq(c).file() >= FILE_E;
