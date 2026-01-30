@@ -139,7 +139,7 @@ ScorePair evaluateBishopPawns(const Board& board, Trace& trace)
     while (bishops.any())
     {
         Square sq = bishops.poplsb();
-        bool lightSquare = (Bitboard::fromSquare(sq) & LIGHT_SQUARES_BB).any();
+        bool lightSquare = LIGHT_SQUARES_BB.has(sq);
         Bitboard sameColorPawns =
             board.pieces(us, PAWN) & (lightSquare ? LIGHT_SQUARES_BB : DARK_SQUARES_BB);
         TRACE_INC(bishopPawns[std::min(sameColorPawns.popcount(), 6u)]);
@@ -212,7 +212,7 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
     {
         Square sq = pieces.poplsb();
         Bitboard attacks = attacks::pieceAttacks<piece>(sq, occupancy);
-        if ((board.checkBlockers(us) & Bitboard::fromSquare(sq)).any())
+        if (board.checkBlockers(us).has(sq))
             attacks &= attacks::inBetweenSquares(sq, board.pieces(us, KING).lsb());
 
         evalData.attackedBy[us][piece] |= attacks;
