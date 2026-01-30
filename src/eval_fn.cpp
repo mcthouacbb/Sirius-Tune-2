@@ -177,10 +177,12 @@ ScorePair evaluateRookOpen(const Board& board, Trace& trace)
 template<Color us>
 ScorePair evaluateMinorBehindPawn(const Board& board, Trace& trace)
 {
+    constexpr Color them = ~us;
+
     Bitboard pawns = board.pieces(PAWN);
     Bitboard minors = board.pieces(us, KNIGHT) | board.pieces(us, BISHOP);
 
-    Bitboard shielded = minors & (us == WHITE ? pawns.south() : pawns.north());
+    Bitboard shielded = minors & attacks::pawnPushes<them>(pawns);
     TRACE_ADD(minorBehindPawn, shielded.popcount());
     return MINOR_BEHIND_PAWN * shielded.popcount();
 }
