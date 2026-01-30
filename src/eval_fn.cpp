@@ -93,6 +93,13 @@ struct EvalData
     ColorArray<ScorePair> attackWeight;
     ColorArray<i32> attackCount;
     ColorArray<Bitboard> kingFlank;
+
+    void addAttacks(Color color, PieceType pieceType, Bitboard attacks)
+    {
+        attackedBy2[color] |= attacked[color] & attacks;
+        attacked[color] |= attacks;
+        attackedBy[color][pieceType] |= attacks;
+    }
 };
 
 using enum Color;
@@ -216,9 +223,7 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
         if (board.checkBlockers(us).has(sq))
             attacks &= attacks::inBetweenSquares(sq, board.pieces(us, KING).lsb());
 
-        evalData.attackedBy[us][piece] |= attacks;
-        evalData.attackedBy2[us] |= evalData.attacked[us] & attacks;
-        evalData.attacked[us] |= attacks;
+        evalData.addAttacks(us, piece, attacks);
 
         eval += MOBILITY[static_cast<i32>(piece) - static_cast<i32>(KNIGHT)]
                         [(attacks & evalData.mobilityArea[us]).popcount()];
@@ -289,13 +294,13 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
 
         if (threats.empty() && isolated)
         {
-            eval += ISOLATED_PAWN[std::min(sq.file(), sq.file() ^ 7)] + exposed * ISOLATED_EXPOSED;
+            eval += ISOLATED_PAWN[std::min(sq.file(), sq.file() ^ 7)] + ISOLATED_EXPOSED * exposed;
             TRACE_INC(isolatedPawn[std::min(sq.file(), sq.file() ^ 7)]);
             TRACE_ADD(isolatedExposed, exposed);
         }
         else if (backwards)
         {
-            eval += BACKWARDS_PAWN[sq.relativeRank<us>()] + exposed * BACKWARDS_EXPOSED;
+            eval += BACKWARDS_PAWN[sq.relativeRank<us>()] + BACKWARDS_EXPOSED * exposed;
             TRACE_INC(backwardsPawn[sq.relativeRank<us>()]);
             TRACE_ADD(backwardsExposed, exposed);
         }
@@ -675,19 +680,11 @@ void initEvalData(const Board& board, EvalData& evalData, const PawnStructure& p
 
     evalData.mobilityArea[us] =
         ~pawnStructure.pawnAttacks[them] & ~Bitboard::fromSquare(ourKing) & ~blockedPawns;
-    evalData.attacked[us] = evalData.attackedBy[us][PAWN] = pawnStructure.pawnAttacks[us];
+    evalData.addAttacks(us, PieceType::PAWN, pawnStructure.pawnAttacks[us]);
 
     Bitboard ourKingAtks = attacks::kingAttacks(ourKing);
-    evalData.attackedBy[us][KING] = ourKingAtks;
-    evalData.attackedBy2[us] = evalData.attacked[us] & ourKingAtks;
-    evalData.attacked[us] |= ourKingAtks;
-    evalData.kingRing[us] =
-        (ourKingAtks | attacks::pawnPushes<us>(ourKingAtks)) & ~Bitboard::fromSquare(ourKing);
-    if (FILE_H_BB.has(ourKing))
-        evalData.kingRing[us] |= evalData.kingRing[us].west();
-    if (FILE_A_BB.has(ourKing))
-        evalData.kingRing[us] |= evalData.kingRing[us].east();
-
+    evalData.addAttacks(us, PieceType::KING, ourKingAtks);
+    evalData.kingRing[us] = attacks::kingRing<us>(ourKing);
     evalData.kingFlank[us] = attacks::kingFlank(us, ourKing.file());
 }
 
