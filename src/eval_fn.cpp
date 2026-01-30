@@ -195,19 +195,18 @@ ScorePair evaluatePieces(const Board& board, EvalData& evalData, Trace& trace)
 
     ScorePair eval = ScorePair(0, 0);
     Bitboard pieces = board.pieces(us, piece);
-    if constexpr (piece == BISHOP)
-        if (pieces.multiple())
-        {
-            eval += BISHOP_PAIR;
-            TRACE_INC(bishopPair);
-        }
+    if (piece == BISHOP && pieces.multiple())
+    {
+        eval += BISHOP_PAIR;
+        TRACE_INC(bishopPair);
+    }
 
     Bitboard occupancy = board.allPieces();
-    if constexpr (piece == BISHOP)
+    if (piece == BISHOP)
         occupancy ^= board.pieces(us, BISHOP) | board.pieces(us, QUEEN);
-    else if constexpr (piece == ROOK)
+    else if (piece == ROOK)
         occupancy ^= board.pieces(us, ROOK) | board.pieces(us, QUEEN);
-    else if constexpr (piece == QUEEN)
+    else if (piece == QUEEN)
         occupancy ^= board.pieces(us, BISHOP) | board.pieces(us, ROOK);
 
     while (pieces.any())
