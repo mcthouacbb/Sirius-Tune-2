@@ -314,7 +314,7 @@ ScorePair evaluatePawns(const Board& board, PawnStructure& pawnStructure, Trace&
         TRACE_INC(pawnPhalanx[sq.relativeRank<us>()]);
     }
 
-    Bitboard defended = ourPawns & attacks::pawnAttacks<us>(ourPawns);
+    Bitboard defended = ourPawns & pawnStructure.pawnAttacks[us];
     while (defended.any())
     {
         Square sq = defended.poplsb();
