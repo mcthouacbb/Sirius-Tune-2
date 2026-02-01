@@ -729,12 +729,38 @@ ScorePair evaluatePsqt(const Board& board, Trace& trace)
     return eval;
 }
 
-double evaluateScale(const Board& board, ScorePair eval)
+double evaluateScale(const Board& board, ScorePair eval, const PawnStructure& pawnStructure)
 {
+    // TODO: this belongs in endgames.h
+    constexpr i32 SCALE_FACTOR_NORMAL = 128;
+
+    i32 scaleFactor = SCALE_FACTOR_NORMAL;
     Color strongSide = eval.eg() > 0 ? WHITE : eval.eg() < 0 ? BLACK : board.sideToMove();
 
-    i32 strongPawns = board.pieces(strongSide, PAWN).popcount();
+    // TODO: add endgame specializations
+    // auto endgameScale = endgames::probeScaleFunc(board, strongSide);
+    // if (endgameScale != nullptr)
+    // scaleFactor = (*endgameScale)(board, evalState);
 
+    if (scaleFactor != SCALE_FACTOR_NORMAL)
+        return scaleFactor;
+
+    Bitboard bishops = board.pieces(BISHOP);
+    Bitboard nonpawns = board.allPieces() & ~board.pieces(PAWN) & ~board.pieces(KING);
+
+    if ((bishops & LIGHT_SQUARES_BB).one() && (bishops & DARK_SQUARES_BB).one()
+        && board.pieces(WHITE, BISHOP).one() && board.pieces(BLACK, BISHOP).one())
+    {
+        if (nonpawns.popcount() > 2)
+            scaleFactor = 35 + 5 * board.pieces(strongSide).popcount();
+        else
+            scaleFactor = 16 + 10 * (pawnStructure.passedPawns & board.pieces(strongSide)).popcount();
+    }
+
+    if (scaleFactor != SCALE_FACTOR_NORMAL)
+        return scaleFactor;
+
+    i32 strongPawns = board.pieces(strongSide, PAWN).popcount();
     return 80 + strongPawns * 7;
 }
 
@@ -772,7 +798,7 @@ Trace getTrace(const Board& board)
 
     trace.tempo[board.sideToMove()]++;
 
-    trace.egScale = evaluateScale(board, eval) / 128.0;
+    trace.egScale = evaluateScale(board, eval, pawnStructure) / 128.0;
 
     eval += (board.sideToMove() == WHITE ? TEMPO : -TEMPO);
 
