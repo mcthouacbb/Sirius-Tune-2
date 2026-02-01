@@ -52,5 +52,5 @@ private:
     }
 
     std::vector<Coefficient>& m_Coefficients;
-    int m_TraceIdx;
+    i32 m_TraceIdx;
 };

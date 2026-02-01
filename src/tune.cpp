@@ -84,7 +84,7 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     trace.nonComplexity.eg = eg;
     eg += ((eg > 0) - (eg < 0)) * std::max(-std::abs(eg), trace.complexity.eg);
 
-    return (mg * pos.phase + eg * (1.0 - pos.phase));
+    return (mg * pos.phase + eg * (1.0 - pos.phase) * pos.egScale);
 }
 
 double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params)
@@ -186,7 +186,7 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
     double target = trainingTarget(pos, WDL_LAMBDA, kValue, scoreKValue);
     double gradientBase = (wdl - target) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
-    double egBase = gradientBase - mgBase;
+    double egBase = (gradientBase - mgBase) * pos.egScale;
     for (i32 i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
@@ -196,7 +196,7 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
             if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
                 gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
-                gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
+                gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
         }
         else if (type == ParamType::SAFETY)
         {
@@ -209,17 +209,17 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
             }
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
             {
-                gradients[coeff.index].eg += coeff.white * egBase * pos.egScale
-                    * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
-                gradients[coeff.index].eg -= coeff.black * egBase * pos.egScale
-                    * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
+                gradients[coeff.index].eg +=
+                    coeff.white * egBase * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
+                gradients[coeff.index].eg -=
+                    coeff.black * egBase * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
             }
         }
         else if (type == ParamType::COMPLEXITY)
         {
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
-                gradients[coeff.index].eg += egBase * coeff.white * pos.egScale
-                    * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
+                gradients[coeff.index].eg +=
+                    coeff.white * egBase * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
     }
 }
