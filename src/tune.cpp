@@ -136,7 +136,7 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
     const EvalParams& params, ErrorType type, double scoreKValue)
 {
-    constexpr double SEARCH_MAX = 1;
+    constexpr double SEARCH_MAX = 0.1;
     constexpr i32 ITERATIONS = 7;
 
     double start = 0, end = SEARCH_MAX, step = 0.025;
