@@ -84,7 +84,7 @@ double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& para
     trace.nonComplexity.eg = eg;
     eg += ((eg > 0) - (eg < 0)) * std::max(-std::abs(eg), trace.complexity.eg);
 
-    return (mg * pos.phase + eg * (1.0 - pos.phase) * pos.egScale);
+    return (mg * pos.phase + eg * (1.0 - pos.phase));
 }
 
 double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params)
