@@ -1,10 +1,10 @@
 #pragma once
 
-constexpr int TUNE_THREADS = 4;
-constexpr int TUNE_MAX_EPOCHS = 900;
+constexpr i32 TUNE_THREADS = 4;
+constexpr i32 TUNE_MAX_EPOCHS = 900;
 constexpr bool TUNE_FROM_ZERO = false;
 constexpr bool TUNE_FROM_MATERIAL = true;
-constexpr int BATCH_SIZE = 16384;
+constexpr i32 BATCH_SIZE = 16384;
 constexpr double WDL_LAMBDA = 0.75;
 constexpr float TUNE_LR = 0.02;
 constexpr float TUNE_K = 0.0;

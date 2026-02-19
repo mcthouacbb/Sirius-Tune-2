@@ -50,7 +50,7 @@ struct EvalTrace
 
 double evaluate(const Position& pos, Coeffs coefficients, const EvalParams& params, EvalTrace& trace)
 {
-    for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
+    for (i32 i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
         const EvalParam& param = params[coeff.index];
@@ -104,7 +104,7 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
     double kValue, const EvalParams& params, ErrorType type, double scoreKValue)
 {
     std::vector<double> threadErrors(threadPool.concurrency());
-    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+    for (u32 threadID = 0; threadID < threadPool.concurrency(); threadID++)
     {
         size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
         size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
@@ -128,7 +128,7 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
     }
     threadPool.wait();
     double error = 0.0;
-    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+    for (u32 threadID = 0; threadID < threadPool.concurrency(); threadID++)
         error += threadErrors[threadID];
     return error / static_cast<double>(positions.size());
 }
@@ -136,8 +136,8 @@ double calcError(ThreadPool& threadPool, std::span<const Position> positions, Co
 double findKValue(ThreadPool& threadPool, std::span<const Position> positions, Coeffs coefficients,
     const EvalParams& params, ErrorType type, double scoreKValue)
 {
-    constexpr double SEARCH_MAX = 1;
-    constexpr int ITERATIONS = 7;
+    constexpr double SEARCH_MAX = 0.1;
+    constexpr i32 ITERATIONS = 7;
 
     double start = 0, end = SEARCH_MAX, step = 0.025;
     double bestK = 0, bestError = 1e10;
@@ -151,7 +151,7 @@ double findKValue(ThreadPool& threadPool, std::span<const Position> positions, C
         std::cout << "Finding score k" << std::endl;
     }
 
-    for (int i = 0; i < ITERATIONS; i++)
+    for (i32 i = 0; i < ITERATIONS; i++)
     {
         std::cout << "Iteration: " << i << std::endl;
         std::cout << "Start: " << start + step << " End: " << end + step << " Step: " << step
@@ -186,8 +186,8 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
     double target = trainingTarget(pos, WDL_LAMBDA, kValue, scoreKValue);
     double gradientBase = (wdl - target) * (wdl * (1 - wdl));
     double mgBase = gradientBase * pos.phase;
-    double egBase = gradientBase - mgBase;
-    for (int i = pos.coeffBegin; i < pos.coeffEnd; i++)
+    double egBase = (gradientBase - mgBase) * pos.egScale;
+    for (i32 i = pos.coeffBegin; i < pos.coeffEnd; i++)
     {
         const auto& coeff = coefficients[i];
         ParamType type = params[coeff.index].type;
@@ -196,7 +196,7 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
             if (trace.complexity.mg >= -std::abs(trace.nonComplexity.mg))
                 gradients[coeff.index].mg += (coeff.white - coeff.black) * mgBase;
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
-                gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase * pos.egScale;
+                gradients[coeff.index].eg += (coeff.white - coeff.black) * egBase;
         }
         else if (type == ParamType::SAFETY)
         {
@@ -209,17 +209,17 @@ void updateGradient(const Position& pos, Coeffs coefficients, double kValue,
             }
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
             {
-                gradients[coeff.index].eg += coeff.white * egBase * pos.egScale
-                    * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
-                gradients[coeff.index].eg -= coeff.black * egBase * pos.egScale
-                    * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
+                gradients[coeff.index].eg +=
+                    coeff.white * egBase * safetyDerivEg(trace.rawSafety[Color::WHITE].eg);
+                gradients[coeff.index].eg -=
+                    coeff.black * egBase * safetyDerivEg(trace.rawSafety[Color::BLACK].eg);
             }
         }
         else if (type == ParamType::COMPLEXITY)
         {
             if (trace.complexity.eg >= -std::abs(trace.nonComplexity.eg))
-                gradients[coeff.index].eg += egBase * coeff.white * pos.egScale
-                    * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
+                gradients[coeff.index].eg +=
+                    coeff.white * egBase * ((trace.normal.eg > 0) - (trace.normal.eg < 0));
         }
     }
 }
@@ -231,7 +231,7 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
 
     std::vector<std::vector<Gradient>> threadGradients(threadPool.concurrency(), gradients);
 
-    for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+    for (u32 threadID = 0; threadID < threadPool.concurrency(); threadID++)
     {
         size_t beginIdx = positions.size() * threadID / threadPool.concurrency();
         size_t endIdx = positions.size() * (threadID + 1) / threadPool.concurrency();
@@ -247,10 +247,10 @@ void computeGradient(ThreadPool& threadPool, std::span<const Position> positions
 
     threadPool.wait();
 
-    for (uint32_t i = 0; i < gradients.size(); i++)
+    for (u32 i = 0; i < gradients.size(); i++)
     {
         Gradient grad = {};
-        for (uint32_t threadID = 0; threadID < threadPool.concurrency(); threadID++)
+        for (u32 threadID = 0; threadID < threadPool.concurrency(); threadID++)
         {
             grad.mg += threadGradients[threadID][i].mg;
             grad.eg += threadGradients[threadID][i].eg;
@@ -299,16 +299,16 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     auto t1 = std::chrono::steady_clock::now();
     auto startTime = t1;
 
-    for (int epoch = 1; epoch <= TUNE_MAX_EPOCHS; epoch++)
+    for (i32 epoch = 1; epoch <= TUNE_MAX_EPOCHS; epoch++)
     {
-        for (int batch = 0; batch < dataset.positions.size() / BATCH_SIZE; batch++)
+        for (i32 batch = 0; batch < dataset.positions.size() / BATCH_SIZE; batch++)
         {
             std::span<const Position> batchPositions = {dataset.positions.begin() + batch * BATCH_SIZE,
                 std::min<size_t>(BATCH_SIZE, dataset.positions.size() - batch * BATCH_SIZE)};
             computeGradient(threadPool, batchPositions, dataset.allCoefficients, kValue, params,
                 gradient, scoreKValue);
 
-            for (int i = 0; i < gradient.size(); i++)
+            for (i32 i = 0; i < gradient.size(); i++)
             {
                 momentum[i].mg = BETA1 * momentum[i].mg + (1 - BETA1) * gradient[i].mg;
                 momentum[i].eg = BETA1 * momentum[i].eg + (1 - BETA1) * gradient[i].eg;
@@ -358,7 +358,7 @@ EvalParams tune(const Dataset& dataset, std::ofstream& outFile)
     std::cout << "Renormalizing eval scale\n" << std::endl;
     outFile << "WDL k value for tuned params: " << finalKValue << std::endl;
     outFile << "Renormalizing eval scale\n" << std::endl;
-    for (uint32_t i = 0; i < params.totalSize(); i++)
+    for (u32 i = 0; i < params.totalSize(); i++)
     {
         params[i].mg *= finalKValue / originalKValue;
         params[i].eg *= finalKValue / originalKValue;

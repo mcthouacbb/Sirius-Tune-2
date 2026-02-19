@@ -2,8 +2,8 @@
 #include "eval_fn.h"
 #include "sirius/board.h"
 
-#include <string>
 #include <charconv>
+#include <string>
 
 constexpr struct
 {
@@ -37,7 +37,7 @@ Dataset loadDataset(std::ifstream& file)
 
         // will overflow to 0
         size_t sixthSpace = SIZE_MAX;
-        for (int i = 0; i < 6; i++)
+        for (i32 i = 0; i < 6; i++)
         {
             sixthSpace = line.find(' ', sixthSpace + 1);
             if (sixthSpace == std::string::npos)
@@ -54,8 +54,9 @@ Dataset loadDataset(std::ifstream& file)
             exit(1);
         }
 
-        int score;
-        auto [ptr, ec] = std::from_chars(line.c_str() + firstBar + 2, line.c_str() + line.size(), score);
+        i32 score;
+        auto [ptr, ec] =
+            std::from_chars(line.c_str() + firstBar + 2, line.c_str() + line.size(), score);
         if (ec != std::errc())
         {
             std::cout << "Error: Invalid Data, Could not parse score: " << line << std::endl;

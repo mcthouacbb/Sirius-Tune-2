@@ -5,7 +5,6 @@
 #include "tune.h"
 #include <algorithm>
 
-
 class EvalFn
 {
 public:
@@ -26,8 +25,8 @@ private:
         if ((type == ParamType::NORMAL && trace[0] - trace[1] != 0)
             || (type == ParamType::COMPLEXITY && trace[0] != 0)
             || (type == ParamType::SAFETY && (trace[0] != 0 || trace[1] != 0)))
-            m_Coefficients.push_back({static_cast<int16_t>(m_TraceIdx),
-                static_cast<int16_t>(trace[0]), static_cast<int16_t>(trace[1])});
+            m_Coefficients.push_back({static_cast<i16>(m_TraceIdx), static_cast<i16>(trace[0]),
+                static_cast<i16>(trace[1])});
         m_TraceIdx++;
     }
 
@@ -53,5 +52,5 @@ private:
     }
 
     std::vector<Coefficient>& m_Coefficients;
-    int m_TraceIdx;
+    i32 m_TraceIdx;
 };

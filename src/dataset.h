@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sirius/defs.h"
+
 #include <array>
 #include <fstream>
 #include <span>
@@ -7,16 +9,16 @@
 
 struct Coefficient
 {
-    int16_t index;
-    int16_t white;
-    int16_t black;
+    i16 index;
+    i16 white;
+    i16 black;
 };
 
 struct Position
 {
-    int coeffBegin;
-    int coeffEnd;
-    int score;
+    i32 coeffBegin;
+    i32 coeffEnd;
+    i32 score;
     double wdl;
     double phase;
     double egScale;

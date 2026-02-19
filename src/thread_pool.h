@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sirius/defs.h"
+
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -7,14 +9,13 @@
 #include <thread>
 #include <vector>
 
-
 class ThreadPool
 {
 public:
-    ThreadPool(uint32_t concurrency);
+    ThreadPool(u32 concurrency);
     ~ThreadPool();
 
-    uint32_t concurrency() const
+    u32 concurrency() const
     {
         return m_Threads.size();
     }
